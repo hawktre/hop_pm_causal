@@ -1,5 +1,5 @@
 ---
-title: "Spread of Wheat Stripe Rust in an Experimental Framework"
+title: "Spillover of Disease Control Costs In the Presence of Interference"
 subtitle: "Modeling Considerations"
 format: 
   pdf:
@@ -17,27 +17,31 @@ format:
       - \fancyhead[L]{Trent VanHawkins}
       - \fancyfoot[C]{\thepage} # Center page number at bottom of each page
 page-layout: full
+bibliography: references.bib
 ---
 
 # Introduction
 
-Hop Powdery Mildew *Podosphaera macularis* has been the focus of much of the work in this research group. The group has previously investigated spread and control of the disease via Monte-Carlo simulations (Pedro et. al., 202X) and has recently taken the first steps in estimating spillover effects of pesticide use using a similar modeling framework (Hwang et. al., 202X). The purpose of this report is to review the modeling structure that has been used up to this point, and to conceptualize this disease pathosystem as a multilayer network and consider modeling implications of this new conceptual framework.
+Hop Powdery Mildew *Podosphaera macularis* has been the focus of much of the work in this research group. The group has previously investigated spread and control of the disease via Monte-Carlo simulations [@pedro] and has recently taken the first steps in estimating spillover effects of pesticide use using a similar modeling framework (Hwang et. al., 202X). The purpose of this report is to review the modeling structure that has been used up to this point, and to conceptualize this disease pathosystem as a multilayer network and consider modeling implications of this new conceptual framework.
 
 # The Current Modeling Framework
 
-Both of the aforementioned studies have focused on a large dataset of the incidence of disease in hop yards in Oregon to quantify how exposure to powdery mildew causes changes in growers' use of pesticides and the resulting expenditures. Briefly, incidence at yard $i$ was modeled using a GLM framework which accounted for auto-infection and network infection from the previous month, adjusting for the number of fungicide sprays (@eq-old-mod). 
+Both of the aforementioned studies have focused on a large dataset of the incidence of disease in hop yards in Oregon to quantify how exposure to powdery mildew causes changes in growers' use of pesticides and the resulting expenditures. Briefly, incidence at yard $i$ was modeled using a GLM framework which accounted for auto-infection and network infection from the previous month, adjusting for the number of fungicide sprays (@eq-old-mod).
 
 $$
-\log\left(\frac{p_i}{1-p_i}\right) = \beta + \delta\left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}}(-\eta_1 s_i)\right) + \gamma \sum_{j=1}^{M_i} \left(\frac{a_j z_j}{n_{z_j}} \exp^{-\eta_2 s_j} w_{ij} f(d_{ij}; \alpha) \right)
+\log\left(\frac{p_i}{1-p_i}\right) = \beta + \delta\left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}}\exp(-\eta_1 s_i)\right) + \gamma \sum_{j\neq i} \left(\frac{a_j z_j}{n_{z_j}} \exp(-\eta_2 s_j) w_{ij} f(d_{ij}; \alpha) \right)
 $$ {#eq-old-mod}
 
-Outward-directed edge weights for this model are then computed as in @eq-old-edge-weights. 
+Inward-directed edge weights for this model are then computed as in @eq-old-edge-weights.
 
 $$
-W_i = \gamma\left(\frac{a_j z_j}{n_j}\right)w_{ij}e^{-(\eta t_j + \alpha d_{ij})}
-$${#eq-old-edge-weights}
+A_{ij} = \begin{cases} 
+\gamma_1 \frac{a_j z_j}{n_{z_j}} e^{-\eta_{21} s_j} w_{ij} (1 + D_{ij})^{-\alpha_1} \cdot \mathbb{1}_{V_6}(j) & \text{Yard $i$ is R6} \\
+\gamma_2 \frac{a_j z_j}{n_{z_j}} e^{-\eta_{22} s_j} w_{ij} (1 + D_{ij})^{-\alpha_2} & \text{Yard $i$ is non-R6}
+\end{cases}
+$$ {#eq-old-edge-weights}
 
-While this model is certainly a powerful and effective framework, it has some notable limitations. Primarily, estimating these parameters for different types of nodes—such as resistant versus non-resistant cultivars—currently requires fitting a separate model for each node type. This makes it difficult to account for the dynamic interactions and spillover effects between different classes of yards. We would like to expand this framework into a multi-layer network approach. By conceptualizing each cultivar type or $\text{cultivar} \times \text{treatment}$ interactions as distinct but interconnected layers within a unified network, we can estimate parameters for various node types simultaneously while still accounting for transmission across the entire system.
+While this model is certainly a powerful and effective framework, it has some notable limitations. Primarily, estimating these parameters for different types of nodes—such as resistant versus non-resistant cultivars—currently requires fitting a separate model for each node type. This makes it difficult to account for the dynamic interactions and spillover effects between different classes of yards. We now posit the idea that auto-infection and dispersal dynamics do not differ between yard types and that leveraging all data within a single, unified framework will improve statistical power and reduce bias in prameter estimates. 
 
 ::: {#tbl-model-specs}
 \begin{table}
@@ -83,76 +87,77 @@ While this model is certainly a powerful and effective framework, it has some no
 \small Descriptions of model parameters and covariates notations for each yard of interest $I = 1,2,...,N$ in a month, and all other yards $j = 1,2,.., M_i$ relative to yard $i$.
 :::
 
-# Introducing Network Asymmetry
+# Constraining Network Asymmetry
 
-Our first goal is to modify our model such that we can account for the dispersal dynamics among and between different node types. The dataset provides information of the cultivar type (R6-resistant or not R6-resistant) and initial strain of *P. macularis* detected at each yard (V6 or non-V6), where V6 strains have adapted to overcome R6-resistance. In reality, the ability of a cultivar to resist infection by *P. macularis* is assigned on an ordinal scale from 0 (low) to (5). To simplify the problem at hand momentarily, **suppose that resistance is binary where any yard with resistance $>0$ can only recieve the "V6" pathogen.** Then, conditioning on the cultivar and initial strain of an initial yard, we con construct a simplified graph of possible network transmission (@fig-transmission-graph). 
+Our first goal is to modify our model such that we can account for the dispersal dynamics among and between different node types. The dataset provides information of whether the cultivar is of type R6 or non-R6 and initial strain of *P. macularis* detected at each yard (V6 or non-V6), where V6 strains have adapted to overcome R6-resistance. Thus, V6 strains of the disease can infect any yard while non-V6 strains can only infect non-R6 yards. Conditioning on the cultivar and initial strain of an initial yard, we con construct a simplified graph of possible network transmission (@fig-transmission-graph).
 
 ::: {#fig-transmission-graph}
 \begin{tikzpicture}[
-    % Define styles for nodes and edges
-    node style/.style={circle, draw=black, minimum size=18mm, align=center, font=\small\bfseries, thick},
-    edge style/.style={->, thick, >=Stealth},
-    % Color Styles for V6 encoding
+    node style/.style={circle, draw=black, minimum size=22mm, align=center, font=\small\bfseries, thick},
+    edge style/.style={thick, >=Stealth},
     v6_style/.style={fill=orange!20},
     non_v6_style/.style={fill=blue!10}
 ]
 
-    % --- Nodes ---
-    % Top node: Non-R6 and Non-V6 (Blue)
-    \node[node style, non_v6_style] (NRNV) at (2, 3.5) {Non-R6};
-    
-    % Bottom left: R6 and V6 (Orange)
-    \node[node style, v6_style] (RV)   at (0, 0) {R6};
-    
-    % Bottom right: Non-R6 and V6 (Orange)
-    \node[node style, v6_style] (NRV)  at (4, 0) {Non-R6};
+    \node[node style, v6_style]     (R6)   at (0, 0)   {R6};
+    \node[node style, non_v6_style] (NR6)  at (4, 0)   {Non-R6};
 
-    % --- Edges ---
-    \draw[edge style] (NRNV) -- (NRV);
-    \draw[edge style] (NRV) -- (RV);
-    \draw[edge style] (NRV) -- (NRNV);
-    \draw[edge style] (RV) -- (NRNV);
-    \draw[edge style] (RV) -- (NRV);
-    % --- Legend ---
-    \begin{scope}[shift={(5.5, 2.5)}] 
-        \draw[black, thin, dashed] (-0.5, 1) rectangle (2.2, -0.5); % Dashed legend box
-        \node[anchor=west, font=\small\itshape] at (-0.4, 0.7) {Initial Strain:};
-        
-        \node[circle, fill=blue!10, draw=black, minimum size=4mm] (L1) at (0, 0.2) {};
-        \node[anchor=west, font=\small] at (0.3, 0.2) {Non-V6};
-        
-        \node[circle, fill=orange!20, draw=black, minimum size=4mm] (L2) at (0, -0.2) {};
-        \node[anchor=west, font=\small] at (0.3, -0.2) {V6};
+    % V6 strain: bidirectional arrow between R6 and Non-R6
+    \draw[edge style, <->, orange!70!black]
+        (R6) to[bend left=0]
+        node[midway, above, font=\scriptsize, orange!70!black] {V6}
+        (NR6);
+
+    % Non-V6 strain: self-loop on Non-R6
+    \draw[edge style, ->, blue!60!black]
+        (NR6) to[out=330, in=30, looseness=3]
+        node[right, font=\scriptsize, blue!60!black] {Non-V6}
+        (NR6);
+
+    % V6 strain: self-loop on R6
+    \draw[edge style, ->, orange!70!black]
+        (R6) to[out=210, in=150, looseness=3]
+        node[left, font=\scriptsize, orange!70!black] {V6}
+        (R6);
+
+    % Legend
+    \begin{scope}[shift={(8, 0)}]
+        \draw[black, thin, dashed] (-0.3, 1.2) rectangle (2.8, -0.3);
+        \node[anchor=west, font=\small\itshape] at (-0.2, 0.9) {Initial strain:};
+        \draw[orange!70!black, thick, <->] (0, 0.45) -- (0.6, 0.45);
+        \node[anchor=west, font=\small] at (0.7, 0.45) {V6};
+        \draw[blue!60!black, thick, ->]   (0, 0.05) -- (0.6, 0.05);
+        \node[anchor=west, font=\small] at (0.7, 0.05) {Non-V6};
     \end{scope}
 
 \end{tikzpicture}
 
-\small A simplified graph of possible network transmission between yards, conditioning on cultivar type and initial strain. R6 cultivars can infect all yards while non-R6 cultivars can only infect R6 yards if their initial strain is V6.
+\small A simplified graph of possible network transmission between yards, conditioning on
+cultivar type and initial strain. R6 and non-R6 yards transmit to each other under a V6
+initial strain, while non-R6 yards under a non-V6 strain can only infect other non-R6 yards
+(self-loop).
 :::
 
 Now, let us leverage this known relationship to construct an adjacency matrix $(\mathbf{A})$ which encodes possible transmission. First let us define
 
 $$
-c_k = \begin{cases} 1 & \text{cultivar } = \text{R6} \\
-0 & \text{else}
-\end{cases} \qquad s_k = \begin{cases} 1 & \text{strain } = \text{V6} \\
+c_k = \begin{cases} 1 & \text{cultivar} = \text{R6} \\
+0 & \text{cultivar} = \text{non-R6}
+\end{cases} \qquad s_k = \begin{cases} 1 & \text{strain} = \text{V6} \\
+0 & \text{strain} = \text{non-V6}
+\end{cases}
+$$
+
+The entries of $\mathbf{A}$ are then given by
+
+$$
+\mathbf{A}_{ij} = \begin{cases}
+1 & s_j = 1 \text{ or } (c_i = c_j = 0) \\
 0 & \text{else}
 \end{cases}
 $$
 
-Then we use the Kronecker Delta expression. Define
-
-$$
-\xi_{ab} = \begin{cases}1 & a = b \\
-0 & a \neq b\end{cases}
-$$
-The entries of $\mathbf{A}$ are then given by 
-
-$$
-\mathbf{A}_{ij} = \max \{ \xi_{c_i c_j} \xi_{s_i s_j}, \, \xi_{c_j 1}, \, \xi_{s_j 1} \}
-$$
-
-Suppose we order yards $i = 1, \ldots, N$ by cultivar type (non-R6 then R6). We can conceptualize $\mathbf{A}$ as the following block-matrix: 
+Suppose we order yards $i = 1, \ldots, N$ by cultivar type (non-R6 then R6). We can conceptualize $\mathbf{A}$ as the following block-matrix:
 
 $$
 \mathbf{A} = \begin{bmatrix}
@@ -161,27 +166,28 @@ $$
 \end{bmatrix}
 $$
 
-Note that the entries of the upper-triangular blocks are all 1, however the entries of $\mathbf{A}_{\text{NR6} \to \text{R6}}$ can be 0 if the initial strain is not V6. Leveraging this known network structure, we can modify our model to estimate the different types of dispersal events. Suppose we wish to estimate within-cultivar transmission and cross-cultivar transmission separately. Preserving notation from the previous model, let us generalize our expression for the auto-infection and dispersal kernels. Define $\mathcal{X} = \{\tilde{\mathbf{y}}, \mathbf{n}_{\tilde{y}}, \mathbf{t}\}, \mathcal{Y} = \{\mathbf{a}, \mathbf{z}, \mathbf{n}_{z_j}, \mathbf{d}, \mathbf{w}, \mathbf{t}\}$
+Note that the entries of the upper-triangular blocks are all 1, however the entries of $\mathbf{A}_{\text{NR6} \to \text{R6}}$ can be 0 if the initial strain is not V6. Leveraging this known network structure, we can modify our model to estimate the different types of dispersal events. Preserving notation from the previous model, let us generalize our expression for the auto-infection and dispersal kernels. Define $\mathcal{X} = \{\tilde{\mathbf{y}}, \mathbf{n}_{\tilde{y}}, \mathbf{t}\}, \mathcal{Y} = \{\mathbf{a}, \mathbf{z}, \mathbf{n}_{z_j}, \mathbf{d}, \mathbf{w}, \mathbf{t}\}$
 
 $$
-A(\mathcal{X}; \eta) = \left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}}T_1(\mathbf{t}; \eta_1)\right) \quad  D(\mathcal{Y}; \eta, \alpha) =  \frac{a_j z_j}{n_{z_j}} \cdot  T_2(\mathbf{t}; \eta) \cdot  \mathbf{w} \cdot f(\mathbf{d}; \alpha)
-$$
-We could then define a new model as in @eq-new-mod. 
+A(\mathcal{X}; \eta_1) = \left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}}T_1(\mathbf{t}; \eta_1)\right) \quad  D(\mathcal{Y}; \eta_2, \alpha) =  \frac{a_j z_j}{n_{z_j}} \cdot  T_2(\mathbf{t}; \eta_2) \cdot  \mathbf{w} \cdot f(\mathbf{d}; \alpha)
+$$ 
+
+We could then define a new model as in @eq-new-mod.
 
 $$
 \begin{split}
-\log\left(\frac{p_i}{1-p_i}\right) = \beta + \delta A(\mathcal{X}; \eta) &+ \gamma_{\text{Within}} \sum_{j \neq i} \left(\mathbf{A}_{ij} \xi_{c_ic_j} \cdot D(\mathcal{X}; \eta_2, \alpha_1) \right) \\ &+ \gamma_{\text{Cross}} \sum_{j\neq i} \left(\mathbf{A}_{ij} (1 - \xi_{c_ic_j}) \cdot D(\mathcal{X}; \eta_3, \alpha_2)  \right)
+\log\left(\frac{p_i}{1-p_i}\right) = \beta + \delta A(\mathcal{X}; \eta) &+ \gamma \sum_{j \neq i} \left(\mathbf{A}_{ij} \cdot D(\mathcal{Y}; \eta_2, \alpha) \right)
 \end{split}
-$${#eq-new-mod}
+$$ {#eq-new-mod}
 
-We can then construct edge-weights for each type of transmission event using the relevant dispersal component. For example, we could contruct cross-cultivar transmission weights as 
+We can then construct inward edge-weights for all nodes using the dispersal component as in @eq-edge-weight.
+$$
+W_{ij} = \gamma \cdot \mathbf{A}_{ij} \cdot D(\mathcal{X}; \eta_2, \alpha)  
+$${#eq-edge-weight}
+
+In the particular case of the previous model formulation, our model will be formulated as 
 
 $$
-W_{\text{Cross}} = \gamma_{\text{Cross}} \left(\mathbf{A}_{ij} (1 - \xi_{c_ic_j}) \cdot D(\mathcal{X}; \eta_3, \alpha_2)  \right)
-$$
-Note that
+\log\left(\frac{p_i}{1-p_i}\right) = \beta + \delta\left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}}\exp(-\eta_1 s_i)\right) + \gamma \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_j z_j}{n_{z_j}} \exp(-\eta_2 s_j) w_{ij} f(d_{ij}; \alpha) \right)
+$$ 
 
-  - $\mathbf{A}_{ij} \xi_{c_ic_j} = 1$ if cultivars match *and* transmission is allowed by our adjacency matrix. 
-  - $\mathbf{A}_{ij} (1 - \xi_{c_ic_j}) = 1$ if cultivars do not match *and* transmission is allowed by our adjacency matrix.
-  
-We could further partition the transmission piece into its linear components (e.g. one for each block of $\mathbf{A}$) or even conceptualize a multi-layer network that considers treatment status as a layer and leverage this modeling framework. Note, however,  that we add 3 parameters that we must estimate for every additional partitioning of the dispersal effects. 
