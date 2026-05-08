@@ -41,10 +41,49 @@ execute:
   warning: false
 code-links:
   - text: GitHub Repository
-    href: https://github.com/hawktre/wheat_striperust
+    href: https://github.com/hawktre/hop_pm_causal
 page-layout: full
 references: references.bib
 bibliography: references.bib
 ---
+# Introduction
 
+# Methods
+
+# Results
+## Maximum Likelihood Estiamtes
+
+```{r}
+library(tidyverse)
+library(here)
+library(kableExtra)
+
+mle_df <- read.csv(here("data/processed/mle_results.csv"))
+
+# transition map
+transition_map <- c("may"= "April-May", "jun"= "May-June", "jul"= "June-July")
+
+mle_df <- mle_df |> mutate(transition = recode(month, !!!transition_map))
+
+# 1. Pivot the data to wide format
+# We use 'parameter' as the index (rows)
+mle_wide <- mle_df %>%
+  select(parameter, transition, scenario, estimate) %>%
+  pivot_wider(
+    names_from = c(transition, scenario),
+    values_from = estimate
+  )
+
+# 2. Create the kableExtra table with multi-level headers
+# Corrected header vector summing to 10
+mle_wide %>%
+  kbl(caption = "Parameter Estimates by Transition and Prior Scenario",
+      booktabs = TRUE, 
+      align = "c",
+      digits = 3,
+      col.names = c("Parameter", rep(c("No Prior", "Vague Prior", "Strong Prior"), 3))) %>%
+  kable_classic() %>%
+  add_header_above(c(" " = 1, "April-May" = 3, "May-June" = 3, "June-July" = 3)) 
+
+```
 

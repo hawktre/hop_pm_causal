@@ -75,6 +75,8 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years, prior
         "a_lag": stacked_data[f'a_{lag_month}'].flatten(),
         "cultivar": stacked_data['tI1'].flatten(),
         "dist_mats": dist_mats, "wind_mats": wind_mats,
+        "field_id": pd.factorize(stacked_data['field_id'].flatten())[0] + 1,
+        "J": len(np.unique(stacked_data['field_id'].flatten())),
         **prior_config 
     }
     return stan_data
@@ -101,7 +103,7 @@ prior_scenarios = {
 years = [2014, 2015, 2016, 2017]
 months = ['may', 'jun', 'jul']
 seeds = range(100, 110)
-stan_model = cmdstanpy.CmdStanModel(stan_file="src/dispersal_mod.stan")
+stan_model = cmdstanpy.CmdStanModel(stan_file="src/dispersal_mod_RE.stan")
 data_by_year, stacked = load_and_preprocess_hop_data(years)
 
 all_tidy_rows = []
