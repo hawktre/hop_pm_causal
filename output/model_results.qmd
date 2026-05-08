@@ -1,0 +1,50 @@
+---
+title: "Spillover of Disease Control Costs In the Presence of Interference"
+subtitle: "Network Estimation with Maximum Likelihood"
+author:   
+  - name: Trent VanHawkins
+    affiliations:
+      - ref: osu
+    degrees: MS
+    corresponding: true
+  - name: Jaeyoung Hwang
+    affiliations:
+      - ref: usda
+    degrees: PhD
+  - name: David Gent
+    affiliations:
+      - ref: usda
+      - ref: osu
+    degrees: PhD
+  - name: Shirshendu Chatterjee
+    affiliations:
+      - ref: nyu
+    degrees: PhD
+  - name: Sharmodeep Bhattacharyya
+    affiliations:
+      - ref: osu
+    degrees: PhD
+affiliations:
+  - id: osu
+    name: Oregon State University
+  - id: usda
+    name: U.S. Department of Agriculture
+  - id: nyu
+    name: City University of New York
+format: 
+  html:
+    lightbox: auto
+embed-resources: true
+toc: true
+code-fold: true
+execute: 
+  warning: false
+code-links:
+  - text: GitHub Repository
+    href: https://github.com/hawktre/wheat_striperust
+page-layout: full
+references: references.bib
+bibliography: references.bib
+---
+
+

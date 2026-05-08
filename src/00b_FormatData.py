@@ -19,6 +19,8 @@ for yr in yr:
     # Number of yards j (target)
     M = data['Field ID'].unique().shape[0]
 
+    year_vec = np.full(N, yr)
+
     periods = [0, 1]
 
     # Create arrays containing the number of plants sampled in each yard
@@ -315,28 +317,28 @@ for yr in yr:
     # Save data 
                 
     if yr == 2014:
-        np.savez('../data/processed/data_2014', N=N, M=M, distance=distance, sI2=sI2, tI1=tI1, tI2=tI2, 
+        np.savez('data/processed/data_2014', field_id = field_id.flatten(), year_vec = year_vec, N=N, M=M, distance=distance, sI2=sI2, tI1=tI1, tI2=tI2, 
         y_apr=y_apr, n_apr=n_apr, a_apr=a_apr, wind_apr=wind_apr, sI1_apr=sI1_apr, s_apr=s_apr,
         y_may=y_may, n_may=n_may, a_may=a_may, wind_may=wind_may, sI1_may=sI1_may, s_may=s_may, 
         y_jun=y_jun, n_jun=n_jun, a_jun=a_jun, wind_jun=wind_jun, sI1_jun=sI1_jun, s_jun=s_jun,
         y_jul=y_jul, n_jul=n_jul, a_jul=a_jul, wind_jul=wind_jul, sI1_jul=sI1_jul, s_jul=s_jul)
         
     elif yr == 2015:
-        np.savez('../data/processed/data_2015', N=N, M=M, distance=distance, sI2=sI2, tI1=tI1, tI2=tI2, 
+        np.savez('data/processed/data_2015', field_id = field_id.flatten(), year_vec = year_vec, N=N, M=M, distance=distance, sI2=sI2, tI1=tI1, tI2=tI2, 
         y_apr=y_apr, n_apr=n_apr, a_apr=a_apr, wind_apr=wind_apr, sI1_apr=sI1_apr, s_apr=s_apr,
         y_may=y_may, n_may=n_may, a_may=a_may, wind_may=wind_may, sI1_may=sI1_may, s_may=s_may, 
         y_jun=y_jun, n_jun=n_jun, a_jun=a_jun, wind_jun=wind_jun, sI1_jun=sI1_jun, s_jun=s_jun,
         y_jul=y_jul, n_jul=n_jul, a_jul=a_jul, wind_jul=wind_jul, sI1_jul=sI1_jul, s_jul=s_jul)
 
     elif yr == 2016:
-        np.savez('../data/processed/data_2016', N=N, M=M, distance=distance, sI2=sI2, tI1=tI1, tI2=tI2, 
+        np.savez('data/processed/data_2016', field_id = field_id.flatten(), year_vec = year_vec,  N=N, M=M, distance=distance, sI2=sI2, tI1=tI1, tI2=tI2, 
         y_apr=y_apr, n_apr=n_apr, a_apr=a_apr, wind_apr=wind_apr, sI1_apr=sI1_apr, s_apr=s_apr,
         y_may=y_may, n_may=n_may, a_may=a_may, wind_may=wind_may, sI1_may=sI1_may, s_may=s_may, 
         y_jun=y_jun, n_jun=n_jun, a_jun=a_jun, wind_jun=wind_jun, sI1_jun=sI1_jun, s_jun=s_jun,
         y_jul=y_jul, n_jul=n_jul, a_jul=a_jul, wind_jul=wind_jul, sI1_jul=sI1_jul, s_jul=s_jul)
 
     elif yr == 2017:
-        np.savez('../data/processed/data_2017', N=N, M=M, distance=distance, sI2=sI2, tI1=tI1, tI2=tI2, 
+        np.savez('data/processed/data_2017', field_id = field_id.flatten(), year_vec = year_vec, N=N, M=M, distance=distance, sI2=sI2, tI1=tI1, tI2=tI2, 
         y_apr=y_apr, n_apr=n_apr, a_apr=a_apr, wind_apr=wind_apr, sI1_apr=sI1_apr, s_apr=s_apr,
         y_may=y_may, n_may=n_may, a_may=a_may, wind_may=wind_may, sI1_may=sI1_may, s_may=s_may, 
         y_jun=y_jun, n_jun=n_jun, a_jun=a_jun, wind_jun=wind_jun, sI1_jun=sI1_jun, s_jun=s_jun,

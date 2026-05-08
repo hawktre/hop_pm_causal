@@ -36,7 +36,7 @@ Inward-directed edge weights for this model are then computed as in @eq-old-edge
 
 $$
 A_{ij} = \begin{cases} 
-\gamma_1 \frac{a_j z_j}{n_{z_j}} e^{-\eta_{21} s_j} w_{ij} (1 + D_{ij})^{-\alpha_1} \cdot \mathbb{1}_{V_6}(j) & \text{Yard $i$ is R6} \\
+\gamma_1 \frac{a_j z_j}{n_{z_j}} e^{-\eta_{21} s_j} w_{ij} (1 + D_{ij})^{-\alpha_1} \cdot \mathbf{1}_{V_6}(j) & \text{Yard $i$ is R6} \\
 \gamma_2 \frac{a_j z_j}{n_{z_j}} e^{-\eta_{22} s_j} w_{ij} (1 + D_{ij})^{-\alpha_2} & \text{Yard $i$ is non-R6}
 \end{cases}
 $$ {#eq-old-edge-weights}
