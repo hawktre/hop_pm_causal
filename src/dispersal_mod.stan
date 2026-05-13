@@ -132,11 +132,11 @@ model {
   gamma ~ lognormal(gamma_mu, gamma_sigma);
   
   // Distance decay 
-  alpha ~ normal(alpha_mu, alpha_sigma);
+  alpha ~ lognormal(alpha_mu, alpha_sigma);
   
   // Sprays decay 
-  eta1 ~ normal(eta1_mu, eta1_sigma);
-  eta2 ~ normal(eta2_mu, eta2_sigma);
+  eta1 ~ lognormal(eta1_mu, eta1_sigma);
+  eta2 ~ lognormal(eta2_mu, eta2_sigma);
 
   // Likelihood
   y ~ binomial_logit(n, logit_p);

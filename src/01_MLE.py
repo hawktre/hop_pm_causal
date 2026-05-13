@@ -84,17 +84,17 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years, prior
 # --- 3. CONFIGURATIONS ---
 prior_scenarios = {
     "No Priors": {
-        "beta_mu": 0, "beta_sigma": 100, "delta_mu": 6, "delta_sigma": 10,
+        "beta_mu": 0, "beta_sigma": 100, "delta_mu": 0, "delta_sigma": 10,
         "gamma_mu": 0, "gamma_sigma": 10, "alpha_mu": 1, "alpha_sigma": 10,
         "eta1_mu": 0, "eta1_sigma": 10, "eta2_mu": 0, "eta2_sigma": 10
     },
     "Vague Priors": {
-        "beta_mu": 0, "beta_sigma": 5, "delta_mu": 6, "delta_sigma": 1.5,
+        "beta_mu": 0, "beta_sigma": 5, "delta_mu": 0, "delta_sigma": 1.5,
         "gamma_mu": 0, "gamma_sigma": 1.0, "alpha_mu": 1, "alpha_sigma": 0.5,
         "eta1_mu": 0, "eta1_sigma": 1.0, "eta2_mu": 0, "eta2_sigma": 0.1 
     },
     "Strong Priors": {
-        "beta_mu": 0, "beta_sigma": 2, "delta_mu": 7.6, "delta_sigma": 0.5,
+        "beta_mu": 0, "beta_sigma": 2, "delta_mu": 0, "delta_sigma": 0.5,
         "gamma_mu": 0, "gamma_sigma": 0.5, "alpha_mu": 1, "alpha_sigma": 0.2,
         "eta1_mu": 0, "eta1_sigma": 0.2, "eta2_mu": 0, "eta2_sigma": 0.05 
     }
@@ -103,74 +103,70 @@ prior_scenarios = {
 years = [2014, 2015, 2016, 2017]
 months = ['may', 'jun', 'jul']
 seeds = range(100, 110)
-stan_model = cmdstanpy.CmdStanModel(stan_file="src/dispersal_mod_RE.stan")
+stan_model = cmdstanpy.CmdStanModel(stan_file="src/dispersal_mod.stan")
 data_by_year, stacked = load_and_preprocess_hop_data(years)
 
 all_tidy_rows = []
 all_preds = {}
 edge_weights = {}
-# --- 4. MAIN EXECUTION LOOP ---
+# --- MAIN EXECUTION LOOP ---
 for month in months:
     for scenario_name, config in prior_scenarios.items():
         print(f"--- Processing {month} | {scenario_name} ---")
         stan_data = prepare_stan_inputs(month, data_by_year, stacked, years, config)
         
-        best_lp = -np.inf
-        best_fit = None
-
-        # Multi-Seed Optimization 
+        # We no longer track a single "best_lp" for the whole loop
+        # Instead, we process every successful fit
         for s in seeds:
             try:
                 current_fit = stan_model.optimize(data=stan_data, seed=s, jacobian=False)
+                current_lp = current_fit.optimized_params_dict['lp__']
                 
-                if current_fit.optimized_params_dict['lp__'] > best_lp:
-                    best_lp = current_fit.optimized_params_dict['lp__']
-                    best_fit = current_fit
+                # --- Laplace Approximation for each successful fit ---
+                params = ['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2']
+                try:
+                    fit_laplace = stan_model.laplace_sample(data=stan_data, mode=current_fit, jacobian=False, seed=124)
+                    samples = fit_laplace.draws_pd()
+                    
+                    if not samples.empty:
+                        std_errors = samples[params].std(axis=0).to_numpy()
+                    else:
+                        std_errors = np.full(len(params), np.nan)
+                        
+                except (RuntimeError, ValueError, Exception) as e:
+                    print(f"Laplace failed for Seed {s} in {month}/{scenario_name}: {e}")
+                    std_errors = np.full(len(params), np.nan)
+
+                # --- Wrangle results for THIS specific seed ---
+                mle_vals = current_fit.optimized_params_pd[params].to_numpy()[0]
+                
+                # Use a unique key for predictions/edges that includes the seed
+                run_id = f"{month}_{scenario_name.lower().replace(' ', '_')}_seed{s}"
+                
+                all_preds[run_id] = current_fit.optimized_params_pd.filter(like="logit_p").to_numpy()[0]
+                # Added deviance_resid to capture the update from the Stan code
+                # deviance_resids[run_id] = current_fit.optimized_params_pd.filter(like="deviance_resid").to_numpy()[0]
+                
+                for i, p_name in enumerate(params):
+                    all_tidy_rows.append({
+                        'month': month,
+                        'scenario': scenario_name,
+                        'seed': s,
+                        'parameter': p_name,
+                        'estimate': mle_vals[i],
+                        'std_error': std_errors[i],
+                        'lp__': current_lp
+                    })
                     
             except (RuntimeError, ValueError) as e:
-                # Catch specific Stan failures without stopping the loop
                 print(f"Seed {s} failed for {month} in {scenario_name}: {e}")
                 continue
-
-        if best_fit is None:
-            continue
-
-        # Laplace Approximation for Standard Errors 
-        params = ['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2']
-        try:
-            fit_laplace = stan_model.laplace_sample(data=stan_data, mode=best_fit, jacobian=False, seed=124)
-            samples = fit_laplace.draws_pd()
-            
-            if not samples.empty:
-                std_errors = samples[params].std(axis=0).to_numpy()
-            else:
-                std_errors = np.full(len(params), np.nan)
-                
-        except (RuntimeError, ValueError, Exception) as e:
-            # This block catches singular Hessians or inversion failures
-            print(f"Laplace failed for {month} in {scenario_name}: {e}")
-            std_errors = np.full(len(params), np.nan)
-
-        # Wrangle results into tidy format
-        mle_vals = best_fit.optimized_params_pd[params].to_numpy()[0]
-        month_scenario_str = month + "_" + scenario_name.lower().replace(" ", "_")
-        all_preds[month_scenario_str] = best_fit.optimized_params_pd.filter(like = "logit_p").to_numpy()[0]
-        edge_weights[month_scenario_str] = best_fit.optimized_params_pd.filter(like = "edge_weight").to_numpy()[0]
-        for i, p_name in enumerate(params):
-            all_tidy_rows.append({
-                'month': month,
-                'scenario': scenario_name,
-                'parameter': p_name,
-                'estimate': mle_vals[i],
-                'std_error': std_errors[i],
-                'lp__': best_lp
-            })
 
 # --- 5. RESULTS ---
 df_results = pd.DataFrame(all_tidy_rows)
 df_results['lower_95'] = df_results['estimate'] - (1.96 * df_results['std_error']) 
 df_results['upper_95'] = df_results['estimate'] + (1.96 * df_results['std_error'])
-
+pd.set_option('display.max_rows', None)
 print(df_results)
 
 #Save out MLE estimates and Predicted Values

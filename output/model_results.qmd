@@ -32,58 +32,230 @@ affiliations:
   - id: nyu
     name: City University of New York
 format: 
-  html:
-    lightbox: auto
-embed-resources: true
-toc: true
-code-fold: true
-execute: 
-  warning: false
-code-links:
-  - text: GitHub Repository
-    href: https://github.com/hawktre/hop_pm_causal
+  pdf:
+    geometry: "margin=0.75in"
+    mathspec: true
+    cap-location: bottom
+    tbl-cap-location: top
+    header-includes: 
+      - \usepackage{fancyhdr, amsthm, amssymb,amsfonts,amsthm, amsmath, bbm, tikz}
+      - \usepackage{float, tabularx}
+      - \usetikzlibrary{positioning, arrows.meta} 
+      - \floatplacement{table}{H}
+      - \pagestyle{fancy}
+      - \fancyhead[R]{Model Considerations}
+      - \fancyhead[L]{Trent VanHawkins}
+      - \fancyfoot[C]{\thepage} # Center page number at bottom of each page
 page-layout: full
-references: references.bib
 bibliography: references.bib
 ---
+
 # Introduction
+
+Hop Powdery Mildew *Podosphaera macularis* has been the focus of much of the work in this research group. The group has previously investigated spread and control of the disease via Monte-Carlo simulations [@pedro] and have recently taken the first steps in estimating spillover effects of pesticide use on neighboring hop-yards (Hwang et. al., 202X). Estimation of the underlying disease transmission network is foundational to these works, and has previously proven to be a complex exercise in non-linear optimization. This complexity is, in part, introduced by a pathological constraint. Put simply, Hop cultivars can be dichotomized on the basis of resistance to races of *P. macularis*. Cultivars possessing the R6 resistance gene can infected *only by the V6 race* of *P. macularis*, while the remaining cultivars may be infected by other races (Vb, V3, V4, V5) *and* the V6 race (@fig-transmission-graph). 
+
+::: {#fig-transmission-graph}
+\begin{tikzpicture}[
+    node style/.style={circle, draw=black, minimum size=22mm, align=center, font=\small\bfseries, thick},
+    edge style/.style={thick, >=Stealth},
+    v6_style/.style={fill=orange!20},
+    non_v6_style/.style={fill=blue!10}
+]
+
+    \node[node style, v6_style]     (R6)   at (0, 0)   {R6};
+    \node[node style, non_v6_style] (NR6)  at (4, 0)   {Non-R6};
+
+    % V6 strain: bidirectional arrow between R6 and Non-R6
+    \draw[edge style, <->, orange!70!black]
+        (R6) to[bend left=0]
+        node[midway, above, font=\scriptsize, orange!70!black] {V6}
+        (NR6);
+
+    % Non-V6 strain: self-loop on Non-R6
+    \draw[edge style, ->, blue!60!black]
+        (NR6) to[out=330, in=30, looseness=3]
+        node[right, font=\scriptsize, blue!60!black] {Non-V6}
+        (NR6);
+
+    % V6 strain: self-loop on R6
+    \draw[edge style, ->, orange!70!black]
+        (R6) to[out=210, in=150, looseness=3]
+        node[left, font=\scriptsize, orange!70!black] {V6}
+        (R6);
+
+    % Legend
+    \begin{scope}[shift={(8, 0)}]
+        \draw[black, thin, dashed] (-0.3, 1.2) rectangle (2.8, -0.3);
+        \node[anchor=west, font=\small\itshape] at (-0.2, 0.9) {Initial strain:};
+        \draw[orange!70!black, thick, <->] (0, 0.45) -- (0.6, 0.45);
+        \node[anchor=west, font=\small] at (0.7, 0.45) {V6};
+        \draw[blue!60!black, thick, ->]   (0, 0.05) -- (0.6, 0.05);
+        \node[anchor=west, font=\small] at (0.7, 0.05) {Non-V6};
+    \end{scope}
+
+\end{tikzpicture}
+
+\small A simplified graph of possible network transmission between yards, conditioning on
+cultivar type and initial strain. R6 and non-R6 yards transmit to each other under a V6
+initial strain, while non-R6 yards under a non-V6 strain can only infect other non-R6 yards
+(self-loop).
+:::
+
+Information provided by the sentinel dataset on cultivar type and initial strain allow us to apply the contraint in our modeling procedure. Up to now, all approaches of this group have taken the approach of @gent2019, in which estimation is conducted on discrete time transitions seperately for R6 and non-R6 yards (@eq-old-mod). The resulting directed edge-weights of the transmission network are then estimated accordingly (@eq-old-edge-weights). The advantage of this approach is that it allows flexible estimation of auto-infection and dispersal parameters in the case that they differ between R6 and non-R6 cultivars. The potentail drawback is that less data is used to estimate each set of parameters potentially reducing statistical power and parameter identifiability---particularly during early months (April-May) when there are relatively few infections. 
+
+$$
+\log\left(\frac{p_{i,t}}{1-p_{i,t}}\right) = \beta + \delta\underbrace{\left(\frac{y_{i, t-1}}{n_{i, t-1}}\cdot \exp(-\eta_1 s_{i,t-1})\right)}_{\text{auto-infection}} + \gamma \underbrace{\sum_{j\neq i} \left(\frac{a_j \cdot y_{j,t-1}}{n_{j,t-1}} \cdot \exp(-\eta_2 s_{j, t-1}) \cdot w_{i,j} \cdot (1 + d_{i,j})^{-\alpha} \right)}_{\text{recieved inoculum}}
+$$ {#eq-old-mod}
+
+$$
+W_{ij} = \begin{cases} 
+\gamma_1 \frac{a_j \cdot y_{j,t-1}}{n_{j,t-1}} \cdot \exp(-\eta_{21} s_{j, t-1}) \cdot w_{i,j} \cdot (1 + d_{i,j})^{-\alpha_1} \cdot \mathbf{1}_{V_6}(j) & \text{Yard $i$ is R6} \\
+\gamma_2 \frac{a_j \cdot y_{j,t-1}}{n_{j,t-1}} \cdot \exp(-\eta_{22} s_{j, t-1}) \cdot w_{i,j} \cdot (1 + d_{i,j})^{-\alpha_2} & \text{Yard $i$ is non-R6}
+\end{cases}
+$$ {#eq-old-edge-weights}
+
+::: {#tbl-model-specs}
+\begin{table}
+    \small
+    \centering
+    \subcaptionbox{Covariate notations and descriptions.\label{tbl-covariates}}{
+        \begin{tabularx}{\textwidth}{lX}
+            \toprule
+            Covariate & Description \\
+            \midrule
+            $y_{i, t-1}$     & Number of diseased plants at yard $i$ in the prior month \\
+            $n_{i, t-1}$ & Number of plants sampled at yard $i$ in the prior month \\
+            $a_i$             & Area (hectares) of yard $i$ \\
+            $d_{ij}$          & Distance (kilometers) from centroids of yard $i$ to yard $j$ \\
+            $w_{ij}$          & Wind vector on $j - i$ direction in the prior month \\
+            $s_i$             & Number of fungicide sprays in yard $i$ in prior month \\
+            \bottomrule
+        \end{tabularx}
+    }
+    
+    \vspace{1em}  
+
+    \subcaptionbox{Model parameters and descriptions.\label{tbl-parameters}}{
+        \begin{tabularx}{\textwidth}{lX}
+            \toprule
+            Parameter & Description \\
+            \midrule
+            $\beta$    & Baseline log-odds of disease, after accounting for autoinfection and dispersal. \\
+            $\delta$   & Change in log-odds of disease associated with autoinfection at the yard scale, after accounting for disease spread. \\
+            $\gamma$   & Distance-adjusted change in log-odds of disease associated with disease spread from other yards, after accounting for autoinfection. \\
+            $\alpha$   & Dispersal parameter providing distance adjustment to change in log-odds of disease associated with individual source yards. \\
+            $\eta_1$   & Change in log-odds of disease associated with autoinfection at the yard scale, after accounting for fungicide sprays. \\
+            $\eta_2$   & Dispersal parameter providing fungicide spray adjustment to change in log-odds of disease associated with individual source yards. \\
+            \bottomrule
+        \end{tabularx}
+    }
+\end{table}
+
+\small Descriptions of model parameters and covariates notations for each yard of interest $i = 1,2,...,N$ in a month, and all other yards $j = 1,2, \ldots, N_{-i}$ relative to yard $i$.
+:::
+
+Recently, an exploration of multi-layered networks as a theoretical framework for estimation of spillover effects has lead us to an approach that may collapse estimation across cultivars by introducing an indicator function which controls the pathological constraint of @fig-transmission-graph within the model component accounting for incoming infection from other yards. We hypothesize that the phyisological mechanisms responsible for auto-infection and recieved inoculum *do not* differ among cultivar types and that collapsing the framework of @gent2019 into a single regression model will improve parameter identifiability. In the present report, we formally introduce the proposed adaptation and explore its predictive properties empirically.
+
+We additionally note the unique complexity of optimization under the framework of @gent2019, regardless of the specific pathosystem. As mentioned previously, disease networks tend to be sparse during the beginning of an epidemic, often yielding non-identifiable parameters under @eq-old-mod. It is also the case that the form of the auto-infection and recieved inoculum components may vary depending on the pathosystem. For example, we implement a power-law kernel to allow for the "fat-tailed" dispersal gradient often found in Long-Distance Dispersal (LDD) pathosystems; however, the exponential kernel is another common choice. In some cases, it may even be common practice to find the kernel that best fits the data via model selection. Under any optimization scheme which requires gradient information or higher-order derivaties (BFGS, SQLS, etc...) the gradient must be derived (and programmed) for each form of the model under consideration to improve convergence. This process is time-consuming and may limit efforts at finding a best fit. 
+
+The Stan programming language implements **algorithmic (or automatic) differentiation** (AD), which computes derivatives that are exact to machine precision. This eliminates the significant overhead of deriving closed-form expressions and minimizes the risk of manual programmatic errors. While Stan is primarily known for Bayesian inference via Markov Chain Monte Carlo (MCMC), libraries such as `cmdstanr` and `cmdstanpy` provide access to high-performance optimization algorithms—specifically the Limited-memory Broyden–Fletcher–Goldfarb–Shanno (**L-BFGS**) algorithm. These tools allow for a frequentist implementation of the model, yielding Maximum Likelihood Estimates (MLEs) and standard errors derived from the inverse Hessian, while benefiting from Stan’s robust computational architecture. We implement the present model in the Stan programming language in hopes of introducing a flexible optimization routine for future implementations of this work. 
 
 # Methods
 
+## The adapted model 
+
+To adapt @eq-old-mod, we begin by defining indicators (@eq-indicators) that will help us impose the constraint in @fig-transmission-graph. 
+
+$$
+c = \begin{cases} 1 & \text{cultivar} = \text{R6} \\
+0 & \text{cultivar} = \text{non-R6}
+\end{cases} \qquad v = \begin{cases} 1 & \text{strain} = \text{V6} \\
+0 & \text{strain} = \text{non-V6}
+\end{cases}
+$${#eq-indicators}
+
+We can then define our directed adjacency matrix as a function of the indicators in @eq-indicators as in @eq-directed-adj.
+
+$$
+\mathbf{A}_{ij} = \begin{cases}
+1 & v_j = 1 \text{ or } (c_i = c_j = 0) \\
+0 & \text{else}
+\end{cases}
+$${#eq-directed-adj}
+
+Note that our contsraint is satisfied in @eq-directed-adj if source yard $j$ has initial strain V6 (can infect any other yard) *or* if both source yard $j$ and target yard $i$ have the non-R6 cultivar (can be infected by all races of *P. macularis*). We can then define our new model as @eq-new-mod. 
+
+$$
+\log\left(\frac{p_{i,t}}{1-p_{i,t}}\right) = \beta + \delta\left(\frac{y_{i, t-1}}{n_{i, t-1}}\cdot \exp(-\eta_1 s_{i,t-1})\right) + \gamma \sum_{j\neq i} \left(A_{ij} \cdot \frac{a_j \cdot y_{j,t-1}}{n_{j,t-1}} \cdot \exp(-\eta_2 s_{j, t-1}) \cdot w_{i,j} \cdot (1 + d_{i,j})^{-\alpha} \right)
+$$ {#eq-new-mod}
+
+This simple modification means that the recieved inoculum component will take on a value of zero if the constraint of @fig-transmission-graph is not met. We can then adapt @eq-old-edge-weights analogously as @eq-new-edge-weights.
+
+$$
+W_{ij} = 
+\gamma  \cdot A_{ij} \cdot \frac{a_j \cdot y_{j,t-1}}{n_{j,t-1}} \cdot \exp(-\eta_{2} s_{j, t-1}) \cdot w_{i,j} \cdot (1 + d_{i,j})^{-\alpha} 
+$$ {#eq-new-edge-weights}
+
+Note that we drop the additional subscript (1 or 2) for whether the parameters are estimated from non-R6 yards or R6 yards. 
+
+## Optimization in Stan
+
 # Results
+
 ## Maximum Likelihood Estiamtes
 
 ```{r}
+#| echo: false
+#| message: false
+#| warning: false
 library(tidyverse)
 library(here)
 library(kableExtra)
 
 mle_df <- read.csv(here("data/processed/mle_results.csv"))
 
-# transition map
+# 1. Clean up transitions and parameters
 transition_map <- c("may"= "April-May", "jun"= "May-June", "jul"= "June-July")
 
-mle_df <- mle_df |> mutate(transition = recode(month, !!!transition_map))
+# Define mapping for Greek symbols (LaTeX format)
+parameter_map <- c(
+  "beta"  = "$\\beta$",
+  "delta" = "$\\delta$",
+  "gamma" = "$\\gamma$",
+  "alpha" = "$\\alpha$",
+  "eta1" = "$\\eta_1$",
+  "eta2"  = "$\\eta_2$"
+)
 
-# 1. Pivot the data to wide format
-# We use 'parameter' as the index (rows)
-mle_wide <- mle_df %>%
-  select(parameter, transition, scenario, estimate) %>%
-  pivot_wider(
-    names_from = c(transition, scenario),
-    values_from = estimate
+mle_df <- mle_df %>%
+  mutate(
+    transition = recode(month, !!!transition_map),
+    parameter  = recode(parameter, !!!parameter_map)
   )
 
-# 2. Create the kableExtra table with multi-level headers
-# Corrected header vector summing to 10
+# 2. Pivot to Long/Tall format (Parameters as columns)
+# This prevents the table from exceeding page width
+mle_wide <- mle_df %>%
+  select(transition, scenario, parameter, estimate) %>%
+  pivot_wider(
+    names_from = parameter,
+    values_from = estimate
+  ) %>%
+  arrange(factor(transition, levels = c("April-May", "May-June", "June-July")))
+
+# 3. Generate the Table
 mle_wide %>%
-  kbl(caption = "Parameter Estimates by Transition and Prior Scenario",
-      booktabs = TRUE, 
-      align = "c",
-      digits = 3,
-      col.names = c("Parameter", rep(c("No Prior", "Vague Prior", "Strong Prior"), 3))) %>%
-  kable_classic() %>%
-  add_header_above(c(" " = 1, "April-May" = 3, "May-June" = 3, "June-July" = 3)) 
+  kable(
+    caption = "Parameter Estimates across Prior Scenarios",
+    booktabs = TRUE, 
+    align = "llcccccc",
+    format = "latex",
+    escape = FALSE,
+    col.names = c("Transition", "Scenario", names(mle_wide)[3:ncol(mle_wide)]),
+    format.args = list(digits = 3)
+  ) |> 
+     kable_styling(latex_options = c("hold_position", "scale_down")) |> 
+     collapse_rows(columns = 1)
+ 
 
 ```
-

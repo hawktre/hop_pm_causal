@@ -57,7 +57,27 @@ div.sourceCode
 @media screen {
 pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
-</style>
+
+div.csl-bib-body { }
+div.csl-entry {
+clear: both;
+margin-bottom: 0em;
+}
+.hanging-indent div.csl-entry {
+margin-left:2em;
+text-indent:-2em;
+}
+div.csl-left-margin {
+min-width:2em;
+float:left;
+}
+div.csl-right-inline {
+margin-left:2em;
+padding-left:1em;
+}
+div.csl-indent {
+margin-left: 2em;
+}</style>
 
 
 <script>/*!
@@ -2486,6 +2506,20 @@ border: 0;
 
 <section id="introduction" class="level1">
 <h1>Introduction</h1>
+<p>Hop Powdery Mildew <em>Podosphaera macularis</em>, and in particular the sentinel reporting dataset from 2014–2017, has been the focus of much of the work in this research group. The group has previously investigated spread and control of the disease via Monte-Carlo simulations <span class="citation" data-cites="pedro">(<a href="#ref-pedro" role="doc-biblioref">Pedro et al. 2026</a>)</span> and have recently taken the first steps in estimating spillover effects of pesticide use on neighboring hop-yards (Hwang et. al., 202X). Estimation of the underlying disease transmission network is foundational to these works, and has previously proven to be a complex exercise in non-linear optimization. This complexity is, in part, introduced by a pathological constraint. Put simply, Hop cultivars can be dichotomized on the basis of resistance to races of <em>P. macularis</em>. Cultivars possessing the R6 resistance gene can infected <em>only by the V6 race</em> of <em>P. macularis</em>, while the remaining cultivars may be infected by other races (Vb, V3, V4, V5) <em>and</em> the V6 race (<a href="#fig-transmission-graph" class="quarto-xref">Figure 1</a>).</p>
+<div id="fig-transmission-graph" class="quarto-float quarto-figure quarto-figure-center anchored">
+<figure class="quarto-float quarto-float-fig figure">
+<div aria-describedby="fig-transmission-graph-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+
+</div>
+<figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-transmission-graph-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
+Figure 1: A simplified graph of possible network transmission between yards, conditioning on cultivar type and initial strain. R6 and non-R6 yards transmit to each other under a V6 initial strain, while non-R6 yards under a non-V6 strain can only infect other non-R6 yards (self-loop).
+</figcaption>
+</figure>
+</div>
+<p>Information provided by the sentinel dataset on cultivar type and initial strain allow us to apply the contraint in our modeling procedure. Up to now, all approaches of this group have taken the approach of <span class="citation" data-cites="gent2019">Gent, Bhattacharyya, and Ruiz (<a href="#ref-gent2019" role="doc-biblioref">2019</a>)</span>, in which estimation is conducted seperately for R6 and non-R6 yards. The resulting directed edge-weights of the transmission network are then estimated accordingly. The advantage of this approach is that it allows flexible estimation of auto-infection and dispersal parameters in the case that they differ between R6 and non-R6 cultivars. The potentail drawback is that less data is used to estimate each set of parameters potentially reducing statistical power and parameter identifiability – particularly during early months (April-May) when there are relatively few infections.</p>
+<p>Recently, an exploration of multi-layered networks as a theoretical framework for estimation of spillover effects has lead us to an approach that may collapse estimation across cultivars by introducing an indicator function which controls the pathological contraint of <a href="#fig-transmission-graph" class="quarto-xref">Figure 1</a> within the model component accounting for incoming infection from other yards. We hypothesize that the phyisological mechanisms responsible for auto-infection and dispersed infection <em>do not</em> differ among cultivar types and that collapsing the framework of <span class="citation" data-cites="gent2019">Gent, Bhattacharyya, and Ruiz (<a href="#ref-gent2019" role="doc-biblioref">2019</a>)</span> into a single regression model will improve parameter identifiability. In the present report, we formally introduce the proposed adaptation and explore its predictive properties empirically.</p>
+<p>We additionally note that estimation of the <em>P. macularis</em> transmission network</p>
 </section>
 <section id="methods" class="level1">
 <h1>Methods</h1>
@@ -2575,72 +2609,72 @@ June-July
 <td style="text-align: center;">-6.406</td>
 <td style="text-align: center;">-6.407</td>
 <td style="text-align: center;">-6.417</td>
-<td style="text-align: center;">-2.944</td>
-<td style="text-align: center;">-2.944</td>
-<td style="text-align: center;">-2.947</td>
-<td style="text-align: center;">-3.464</td>
-<td style="text-align: center;">-3.458</td>
-<td style="text-align: center;">-3.440</td>
+<td style="text-align: center;">-5.525</td>
+<td style="text-align: center;">-5.279</td>
+<td style="text-align: center;">-4.469</td>
+<td style="text-align: center;">-5.316</td>
+<td style="text-align: center;">-5.152</td>
+<td style="text-align: center;">-4.507</td>
 </tr>
 <tr class="even">
 <td style="text-align: center;">delta</td>
 <td style="text-align: center;">8.868</td>
 <td style="text-align: center;">8.886</td>
 <td style="text-align: center;">9.101</td>
-<td style="text-align: center;">5.821</td>
-<td style="text-align: center;">5.856</td>
-<td style="text-align: center;">6.187</td>
-<td style="text-align: center;">0.270</td>
-<td style="text-align: center;">0.264</td>
-<td style="text-align: center;">0.297</td>
+<td style="text-align: center;">8.742</td>
+<td style="text-align: center;">9.077</td>
+<td style="text-align: center;">11.076</td>
+<td style="text-align: center;">0.409</td>
+<td style="text-align: center;">0.414</td>
+<td style="text-align: center;">0.367</td>
 </tr>
 <tr class="odd">
 <td style="text-align: center;">gamma</td>
 <td style="text-align: center;">0.000</td>
-<td style="text-align: center;">0.369</td>
-<td style="text-align: center;">0.778</td>
+<td style="text-align: center;">0.368</td>
+<td style="text-align: center;">0.779</td>
 <td style="text-align: center;">0.000</td>
-<td style="text-align: center;">0.385</td>
-<td style="text-align: center;">0.797</td>
-<td style="text-align: center;">1240.723</td>
-<td style="text-align: center;">1097.032</td>
-<td style="text-align: center;">753.897</td>
+<td style="text-align: center;">0.389</td>
+<td style="text-align: center;">0.805</td>
+<td style="text-align: center;">937.336</td>
+<td style="text-align: center;">650.313</td>
+<td style="text-align: center;">289.075</td>
 </tr>
 <tr class="even">
 <td style="text-align: center;">alpha</td>
-<td style="text-align: center;">0.912</td>
+<td style="text-align: center;">0.915</td>
+<td style="text-align: center;">0.999</td>
 <td style="text-align: center;">1.000</td>
-<td style="text-align: center;">0.999</td>
 <td style="text-align: center;">0.000</td>
-<td style="text-align: center;">0.996</td>
-<td style="text-align: center;">0.999</td>
-<td style="text-align: center;">0.598</td>
-<td style="text-align: center;">0.600</td>
-<td style="text-align: center;">0.586</td>
+<td style="text-align: center;">0.992</td>
+<td style="text-align: center;">0.997</td>
+<td style="text-align: center;">0.745</td>
+<td style="text-align: center;">0.743</td>
+<td style="text-align: center;">0.747</td>
 </tr>
 <tr class="odd">
 <td style="text-align: center;">eta1</td>
 <td style="text-align: center;">0.000</td>
 <td style="text-align: center;">0.005</td>
 <td style="text-align: center;">0.000</td>
-<td style="text-align: center;">0.037</td>
-<td style="text-align: center;">0.041</td>
-<td style="text-align: center;">0.078</td>
-<td style="text-align: center;">0.013</td>
-<td style="text-align: center;">0.002</td>
-<td style="text-align: center;">0.047</td>
+<td style="text-align: center;">0.389</td>
+<td style="text-align: center;">0.420</td>
+<td style="text-align: center;">0.575</td>
+<td style="text-align: center;">0.085</td>
+<td style="text-align: center;">0.085</td>
+<td style="text-align: center;">0.000</td>
 </tr>
 <tr class="even">
 <td style="text-align: center;">eta2</td>
 <td style="text-align: center;">0.000</td>
 <td style="text-align: center;">0.000</td>
 <td style="text-align: center;">0.000</td>
-<td style="text-align: center;">0.139</td>
+<td style="text-align: center;">0.002</td>
+<td style="text-align: center;">0.030</td>
 <td style="text-align: center;">0.001</td>
-<td style="text-align: center;">0.000</td>
-<td style="text-align: center;">0.620</td>
-<td style="text-align: center;">0.562</td>
-<td style="text-align: center;">0.407</td>
+<td style="text-align: center;">0.406</td>
+<td style="text-align: center;">0.258</td>
+<td style="text-align: center;">0.003</td>
 </tr>
 </tbody>
 </table>
@@ -2648,10 +2682,18 @@ June-July
 
 </div>
 </div>
+
 </section>
 </section>
 
-</main>
+<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography" id="quarto-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" data-entry-spacing="0" role="list">
+<div id="ref-gent2019" class="csl-entry" role="listitem">
+Gent, David H., Sharmodeep Bhattacharyya, and Trevor Ruiz. 2019. <span>“Prediction of Spread and Regional Development of Hop Powdery Mildew: A Network Analysis.”</span> <em>Phytopathology®</em> 109 (8): 1392–1403. <a href="https://doi.org/10.1094/PHYTO-12-18-0483-R">https://doi.org/10.1094/PHYTO-12-18-0483-R</a>.
+</div>
+<div id="ref-pedro" class="csl-entry" role="listitem">
+Pedro, Joshua, Sharmodeep Bhattacharyya, Shirshendu Chatterjee, Thomas L. Marsh, Jae Young Hwang, and David Gent. 2026. <span>“Inoculum Dose, Diversity, Dispersal, and Damage: Simulating Optimal Economic Control of an Aerially-Dispersed Plant Pathogen.”</span> <a href="https://doi.org/10.2139/ssrn.5845162">https://doi.org/10.2139/ssrn.5845162</a>.
+</div>
+</div></section></div></main>
 <!-- /main column -->
 <script id="quarto-html-after-body" type="application/javascript">
 window.document.addEventListener("DOMContentLoaded", function (event) {
