@@ -3,35 +3,30 @@
 
 functions {
   /**
-   * Calculates neighborhood dispersal pressure for a specific year block.
-   * Ensures no cross-year infection and excludes self-infection (j != i).
-   * cultivar_vec is used to ensure only yards of the same cultivar infect each other.
+   * Calculates neighborhood dispersal pressure summed over all source yards.
+   * Returns a vector of length N.
    */
-  vector calc_dispersal(matrix dist,
-                        matrix wind,
-                        vector source_strength,
-                        vector initial_strain,
-                        vector sprays_prev,
-                        vector cultivar_vec,
-                        real alpha,
-                        real eta2) {
-    //Set sample size for current year                    
+  vector calc_dispersal_vec(matrix dist,
+                            matrix wind,
+                            vector source_strength,
+                            vector initial_strain,
+                            vector sprays_prev,
+                            vector cultivar_vec,
+                            real alpha,
+                            real eta2) {
+    
     int N = size(cultivar_vec);
-    
-    //Initialize storage objects
     matrix[N, N] kernel;
-    vector[N] dispersal_pressure;
     
-    //Subset distance and wind to only the entries we need (not padded zeros)
     matrix[N, N] wind_local = wind[1 : N, 1 : N];
     matrix[N, N] dist_local = dist[1 : N, 1 : N];
+    
     // Build the power-law dispersal kernel with cultivar matching
     for (i in 1 : N) {
       for (j in 1 : N) {
         if (i == j) {
           kernel[i, j] = 0;
         } else {
-          // Kernel weighted by cultivar matching (1 if same, 0 if different, 1 if initial_strain = "V6")
           kernel[i, j] = pow(1 + dist_local[i, j], -alpha)
                          * (cultivar_vec[i] == cultivar_vec[j])
                          * initial_strain[j];
@@ -42,10 +37,54 @@ functions {
     // Adjust neighbor source strength by their specific spray history
     vector[N] effective_source = source_strength .* exp(-eta2 * sprays_prev);
     
-    // Weight by wind and calculate arriving pressure
-    dispersal_pressure = (wind_local .* kernel) * effective_source;
+    // Vector-matrix multiplication results in a vector[N]
+    vector[N] dispersal_pressure = (wind_local .* kernel) * effective_source;
     
     return dispersal_pressure;
+  }
+
+  /**
+   * Calculates pairwise neighborhood dispersal pressure between all yards.
+   * Returns an N x N matrix.
+   */
+  matrix calc_dispersal_mat(matrix dist,
+                            matrix wind,
+                            vector source_strength,
+                            vector initial_strain,
+                            vector sprays_prev,
+                            vector cultivar_vec,
+                            real alpha,
+                            real eta2) {
+    
+    int N = size(cultivar_vec);
+    matrix[N, N] kernel;
+    
+    matrix[N, N] wind_local = wind[1 : N, 1 : N];
+    matrix[N, N] dist_local = dist[1 : N, 1 : N];
+    
+    // Build the power-law dispersal kernel with cultivar matching
+    for (i in 1 : N) {
+      for (j in 1 : N) {
+        if (i == j) {
+          kernel[i, j] = 0;
+        } else {
+          kernel[i, j] = pow(1 + dist_local[i, j], -alpha)
+                         * (cultivar_vec[i] == cultivar_vec[j])
+                         * initial_strain[j];
+        }
+      }
+    }
+    
+    // Adjust neighbor source strength by their specific spray history
+    vector[N] effective_source = source_strength .* exp(-eta2 * sprays_prev);
+    
+    // Replicate effective source column vector into an N x N matrix for element-wise math
+    matrix[N, N] effective_source_mat = rep_matrix(effective_source, N);
+    
+    // Element-wise multiplication results in an N x N matrix
+    matrix[N, N] dispersal_pressure_mat = wind_local .* kernel .* effective_source_mat;
+    
+    return dispersal_pressure_mat;
   }
 }
 data {
@@ -89,11 +128,11 @@ transformed data {
 }
 parameters {
   real beta; // Global Intercept
-  real<lower=0> delta; // Global Auto-infection magnitude
-  real<lower=0> gamma; // Global Dispersal magnitude
-  real<lower=0> alpha; // Dispersal kernel decay
-  real<lower=0> eta1; // Auto-infection spray decay
-  real<lower=0> eta2; // Neighborhood spray decay
+  real <lower = 0> delta; // Global Auto-infection magnitude
+  real <lower = 0> gamma; // Global Dispersal magnitude
+  real <lower = 0> alpha; // Dispersal kernel decay
+  real <lower = 0> eta1; // Auto-infection spray decay
+  real <lower = 0> eta2; // Neighborhood spray decay
 
 }
 
@@ -112,7 +151,7 @@ transformed parameters {
     vector[N_yr] cult_y = cultivar[start : end];
     
     // Neighborhood dispersal for this year block
-    vector[N_yr] disp_yr = calc_dispersal(dist_mats[t], wind_mats[t], ss_y,
+    vector[N_yr] disp_yr = calc_dispersal_vec(dist_mats[t], wind_mats[t], ss_y,
                                           sI1_y, s_y, cult_y, alpha, eta2);
     
     // Linear Predictor 
@@ -138,29 +177,46 @@ model {
   eta1 ~ lognormal(eta1_mu, eta1_sigma);
   eta2 ~ lognormal(eta2_mu, eta2_sigma);
 
-  // Likelihood
+  // Likelihood// Fixed: Changed beta_binomial_logit to beta_binomial
   y ~ binomial_logit(n, logit_p);
 }
 
 generated quantities {
-  vector[N_total] edge_weight;
+  array[T] matrix[N_max, N_max] edge_weights;
+  vector[N_total] deviance_resid;
   
+  {
+    vector[N_total] p = inv_logit(logit_p);
+    for (i in 1 : N_total) {
+      real y_hat = n[i] * p[i];
+      real d2 = 0;
+      if (y[i] > 0) 
+        d2 += 2 * y[i] * log(y[i] / y_hat);
+      if (n[i] - y[i] > 0)
+        d2 += 2 * (n[i] - y[i]) * log((n[i] - y[i]) / (n[i] - y_hat));
+      deviance_resid[i] = (y[i] > y_hat ? 1 : -1) * sqrt(d2);
+    }
+  }
+
   for (t in 1 : T) {
     int start = year_starts[t];
     int end = year_ends[t];
     int N_yr = year_sizes[t];
-    
+
     // Year-specific slices
     vector[N_yr] ss_y = source_strength[start : end];
     vector[N_yr] s_y = s_lag[start : end];
     vector[N_yr] sI1_y = sI1_lag[start : end];
     vector[N_yr] cult_y = cultivar[start : end];
     
-    // Neighborhood dispersal for this year block
-    vector[N_yr] disp_yr = calc_dispersal(dist_mats[t], wind_mats[t], ss_y,
-                                          sI1_y, s_y, cult_y, alpha, eta2);
+    // Initialize this year's matrix entirely with zeros
+    edge_weights[t] = rep_matrix(0.0, N_max, N_max);
     
-    // Linear Predictor 
-    edge_weight[start : end] = gamma * disp_yr;
+    // Calculate the smaller local dispersal matrix (N_yr x N_yr)
+    matrix[N_yr, N_yr] disp_yr = calc_dispersal_mat(dist_mats[t], wind_mats[t], ss_y,
+                                                    sI1_y, s_y, cult_y, alpha, eta2);
+    
+    // Assign the local matrix into the top-left corner of the padded matrix
+    edge_weights[t][1 : N_yr, 1 : N_yr] = gamma * disp_yr;
   }
 }

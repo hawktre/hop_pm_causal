@@ -199,8 +199,41 @@ $$ {#eq-new-edge-weights}
 Note that we drop the additional subscript (1 or 2) for whether the parameters are estimated from non-R6 yards or R6 yards. 
 
 ## Optimization in Stan
+Stan is naturally a Probabalistic Programming Language (ProbProg), and as such requires *prior* specification for each model prameter (or assumes flat priors). For the present dataset, we have potential problems of identifiability and as such, we can leverage these priors regularize our model estimates away from extreme values. This is particularly useful in the case that parameters are maximized "on the boundary" of the parameter space. Stan also allows us to place *constraints* on parameters and then optimizes them in the unconstrained space automatically (e.g. the log-sapce for `param<lower=0>`). 
+
+::: {#tbl-priors}
+\begin{table}
+\centering
+\vspace{0.3cm}
+\footnotesize
+\begin{tabular}{l c l cc cc}
+\toprule
+ &  &  & \multicolumn{2}{c}{\textbf{Regularized}} & \multicolumn{2}{c}{\textbf{Informed}} \\
+\cmidrule(lr){4-5} \cmidrule(lr){6-7}
+\textbf{Parameter}& \textbf{Constraint} & \textbf{$p(\theta)$}& \textbf{Location} ($\mu$) & \textbf{Scale} ($\sigma^2$) & \textbf{Location} ($\mu$) & \textbf{Scale} ($\sigma^2$) \\
+\midrule
+$\beta$ (Baseline Intercept) & $(-\infty, \infty)$ & Normal & 0.0 & 100.0 & $-2.5$ & 100.0 \\
+\addlinespace
+$\delta$ (Auto-infection) & $[0, \infty)$ & Log-Normal & 0.0 & 1.0 & 1.0 & 1.0 \\
+\addlinespace
+$\gamma$ (Dispersal Magnitude) & $[0, \infty)$ & Log-Normal & 0.0 & 1.0 & 7.5 & 1.0 \\
+\addlinespace
+$\alpha$ (Kernel Decay) & $[0, \infty)$ & Log-Normal & 1.0 & 1.0 & 1.0 & 1.0 \\
+\addlinespace
+$\eta_1$ (Auto-infection Decay) & $[0, \infty)$ & Log-Normal & 0.0 & 1.0 & 0.0 & 1.0 \\
+\addlinespace
+$\eta_2$ (Dispersal Decay) & $[0, \infty)$ & Log-Normal & 0.0 & 1.0 & 0.0 & 1.0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\small Parameter Constraints and Hyperparameter Distributions under Alternative Prior Scenarios
+:::
+
+Note from @tbl-priors, we tried two different types of priors. One set that simply regularizes towards zero (closely related to the L2 penalty) and one that uses information from previous maximization attempts (informed). Due to the non-linear nature of the model and potention multi-modality, we tried 10 sets of randomly generated initial values from the priors and checked for convergence to a global maximum. 
 
 # Results
+Below we present the parameter estimates and standard errors under each prior scenario presented in @tbl-priors. We then conduct some basic forms of model-checking to verify model fit.
 
 ## Maximum Likelihood Estiamtes
 
@@ -212,50 +245,160 @@ library(tidyverse)
 library(here)
 library(kableExtra)
 
-mle_df <- read.csv(here("data/processed/mle_results.csv"))
+mle_df <- read.csv(here("data/processed/results/mle_results.csv"))
+mle_clean <- mle_df |> select(month, scenario, parameter, n_converged, estimate, std_error)
 
-# 1. Clean up transitions and parameters
-transition_map <- c("may"= "April-May", "jun"= "May-June", "jul"= "June-July")
-
-# Define mapping for Greek symbols (LaTeX format)
-parameter_map <- c(
-  "beta"  = "$\\beta$",
-  "delta" = "$\\delta$",
-  "gamma" = "$\\gamma$",
-  "alpha" = "$\\alpha$",
-  "eta1" = "$\\eta_1$",
-  "eta2"  = "$\\eta_2$"
-)
-
-mle_df <- mle_df %>%
-  mutate(
-    transition = recode(month, !!!transition_map),
-    parameter  = recode(parameter, !!!parameter_map)
+generate_latex_mle_table <- function(df, output_path = NULL) {
+  # 1. Clean and normalize values
+  df_clean <- df %>%
+    mutate(
+      month = str_to_lower(month),
+      scenario = str_to_lower(scenario),
+      parameter = str_to_lower(parameter)
+    )
+  
+  # 2. Average over seeds if multiple exist (just in case)
+  df_agg <- df_clean %>%
+    group_by(month, scenario, parameter) %>%
+    summarise(
+      estimate = mean(estimate, na.rm = TRUE),
+      std_error = mean(std_error, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  # 3. Categorical sorting configurations
+  month_order <- c("apr", "may", "jun", "jul")
+  param_order <- c("beta", "delta", "gamma", "alpha", "eta1", "eta2")
+  
+  df_sorted <- df_agg %>%
+    mutate(
+      month = factor(month, levels = month_order, ordered = TRUE),
+      parameter = factor(parameter, levels = param_order, ordered = TRUE)
+    ) %>%
+    filter(!is.na(month), !is.na(parameter)) %>%
+    arrange(month, parameter)
+  
+  # 4. Pivot the data to get scenarios side-by-side
+  pivot_df <- df_sorted %>%
+    pivot_wider(
+      names_from = scenario,
+      values_from = c(estimate, std_error),
+      names_glue = "{scenario}_{.value}"
+    )
+  
+  # Define parameter LaTeX mapping for clean display
+  param_mapping <- c(
+    'beta' = "$\\beta$",
+    'delta' = "$\\delta$",
+    'gamma' = "$\\gamma$",
+    'alpha' = "$\\alpha$",
+    'eta1' = "$\\eta_1$",
+    'eta2' = "$\\eta_2$"
   )
-
-# 2. Pivot to Long/Tall format (Parameters as columns)
-# This prevents the table from exceeding page width
-mle_wide <- mle_df %>%
-  select(transition, scenario, parameter, estimate) %>%
-  pivot_wider(
-    names_from = parameter,
-    values_from = estimate
-  ) %>%
-  arrange(factor(transition, levels = c("April-May", "May-June", "June-July")))
-
-# 3. Generate the Table
-mle_wide %>%
-  kable(
-    caption = "Parameter Estimates across Prior Scenarios",
-    booktabs = TRUE, 
-    align = "llcccccc",
+  
+  # 5. Format and prepare for kable
+  table_data <- pivot_df %>%
+    group_by(month) %>%
+    mutate(
+      # Only show the month label on the first row of each month group
+      month_col = if_else(row_number() == 1, str_to_title(as.character(month)), ""),
+      parameter_col = param_mapping[as.character(parameter)]
+    ) %>%
+    ungroup() %>%
+    select(
+      month_col,
+      parameter_col,
+      towards_zero_estimate,
+      towards_zero_std_error,
+      informed_priors_estimate,
+      informed_priors_std_error
+    ) %>%
+    mutate(across(where(is.numeric), ~ sprintf("%.3f", .)))
+  
+  # Calculate grouping sizes to add space (\addlinespace) dynamically between months
+  group_sizes <- pivot_df %>%
+    group_by(month) %>%
+    summarize(n = n(), .groups = "drop")
+  
+  end_rows <- cumsum(group_sizes$n)
+  space_rows <- end_rows[-length(end_rows)] # Exclude the very last row
+  
+  # 6. Generate LaTeX table using kableExtra
+  latex_table <- kable(
+    table_data,
     format = "latex",
+    booktabs = TRUE,
     escape = FALSE,
-    col.names = c("Transition", "Scenario", names(mle_wide)[3:ncol(mle_wide)]),
-    format.args = list(digits = 3)
-  ) |> 
-     kable_styling(latex_options = c("hold_position", "scale_down")) |> 
-     collapse_rows(columns = 1)
- 
+    align = "ll|cc|cc",
+    col.names = c("Month", "Parameter", "Estimate", "Std. Error", "Estimate", "Std. Error"),
+    caption = "Maximum Likelihood Estimates (MLE) and Standard Errors Across Scenarios",
+    label = "mle-results"
+  ) %>%
+    kable_styling(latex_options = c("hold_position", "striped"), font_size = 9) %>%
+    add_header_above(c(" " = 1, " " = 1, "Regularized" = 2, "Informed" = 2))
+  
+  # Apply dynamic spacing between month groups
+  for (r in space_rows) {
+    latex_table <- latex_table %>%
+      row_spec(r, extra_latex_after = "\\addlinespace")
+  }
+  
+  # Print and optionally save the LaTeX output
+  if (!is.null(output_path)) {
+    writeLines(as.character(latex_table), output_path)
+    message(paste("\n[Success] Table saved to:", output_path))
+  }
+  
+  return(latex_table)
+}
+generate_latex_mle_table(mle_clean)
+```
+
+Diagnostics reveal improving model fit as transitions progress (@fig-fitted-vs-true). @fig-residuals gives the deviance of predicted points across fitted values. We observe relatively large deviance across the domain of predictions, but they are particularly large at small values, indicating that the model has the hardes time predicting lower disease prevalence. 
+
+```{r}
+#| fig-height: 6
+#| fig-width: 8
+#| label: fig-fitted-vs-true
+#| fig-cap: Fitted vs. Observed values
+#| echo: false
+#| message: false
+mle_preds <- read.csv(here("data/processed/results/mle_preds.csv"))
+
+mle_preds |> 
+  mutate(month = factor(month, levels = c("may", "jun", "jul"), labels = c("April-May", "May-June", "June-July")),
+  scenario = factor(scenario, levels = c("towards_zero", "informed_priors"), labels = c("Regularized", "Informed")),
+  year = factor(year, ordered = T)) |> 
+  ggplot(aes(y = true_prob, x = pred_prob)) +
+  geom_point(aes(color = year))+
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red")+
+  facet_grid(month ~ scenario)+
+  labs(y = "Observed Proportion (Y/N)", x = "Predicted Prob.", color = "Year") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
 
 ```
+
+```{r}
+#| fig-height: 6
+#| fig-width: 8
+#| label: fig-residuals
+#| fig-cap: Deviance residuals across transitions and prior scenarios
+#| echo: false
+#| message: false
+
+mle_preds |> 
+  mutate(month = factor(month, levels = c("may", "jun", "jul"), labels = c("April-May", "May-June", "June-July")),
+  scenario = factor(scenario, levels = c("towards_zero", "informed_priors"), labels = c("Regularized", "Informed")),
+  year = factor(year, ordered = T)) |> 
+  ggplot(aes(y = deviance_resid, x = pred_prob)) +
+  geom_point(aes(color = year))+
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red")+
+  facet_grid(month ~ scenario)+
+  labs(y = "Deviance", x = "Predicted Prob.", color = "Year") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+```
+
+# Discussion
