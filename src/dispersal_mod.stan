@@ -149,13 +149,14 @@ transformed parameters {
     vector[N_yr] s_y = s_lag[start : end];
     vector[N_yr] sI1_y = sI1_lag[start : end];
     vector[N_yr] cult_y = cultivar[start : end];
+    vector[N_yr] prop_y = y_lag[start:end] ./ n_lag[start:end];
     
     // Neighborhood dispersal for this year block
     vector[N_yr] disp_yr = calc_dispersal_vec(dist_mats[t], wind_mats[t], ss_y,
                                           sI1_y, s_y, cult_y, alpha, eta2);
     
     // Linear Predictor 
-    logit_p[start : end] = beta + (delta * ss_y .* exp(-eta1 * s_y))
+    logit_p[start : end] = beta + (delta * prop_y .* exp(-eta1 * s_y))
                            + gamma * disp_yr;
   }
 }

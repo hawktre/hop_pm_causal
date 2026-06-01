@@ -1,9 +1,6 @@
 import numpy as np
 import pandas as pd
 import cmdstanpy
-import matplotlib.pyplot as plt
-import seaborn as sns
-
 
 # --- 1. DATA PRE-PROCESSING ---
 def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_{year}.npz'):
@@ -219,6 +216,7 @@ for month in months:
                 yard_idx = start + i
                 prediction_list.append({
                     'field_id': stacked['field_id'][yard_idx][0],
+                    'cultivar': stacked['tI1'][yard_idx][0],
                     'year': year,
                     'month': month,
                     'scenario': scenario_name,
@@ -260,40 +258,5 @@ df_preds.to_csv("data/processed/results/mle_preds.csv", index=False)
 # Save Edge Weights (Full pairwise matrices)
 df_edges = pd.DataFrame(edge_weight_list)
 df_edges.to_csv("data/processed/results/mle_edges_long.csv", index=False)
-print(f"\nSaved results to data/processed/")
-
-# --- 6. DIAGNOSTIC PLOTS ---
-print("\n--- Generating Diagnostic Plots ---")
-sns.set_theme(style="whitegrid")
-
-# 1. Observed vs Predicted probabilities
-g = sns.FacetGrid(df_preds, col="scenario", row="month", height=4, aspect=1.2, 
-                  sharex=True, sharey=True, margin_titles=True)
-
-def add_identity_line(*args, **kwargs):
-    plt.plot([0, 1], [0, 1], color='red', linestyle='--', alpha=0.5)
-
-g.map(add_identity_line)
-g.map_dataframe(sns.scatterplot, x="pred_prob", y="true_prob", alpha=0.6, s=40)
-g.set_axis_labels("Predicted Probability", "Observed Proportion (y/n)")
-g.set_titles(col_template="{col_name}", row_template="{row_name}")
-g.tight_layout()
-g.savefig('output/mle_diagnostic_fit.png')
-
-# 2. Residuals vs Fitted
-r = sns.FacetGrid(df_preds, col="scenario", row="month", height=4, aspect=1.2, 
-                  sharex=True, sharey=False, margin_titles=True)
-
-def add_zero_line(*args, **kwargs):
-    plt.axhline(0, color='red', linestyle='--', alpha=0.5)
-
-r.map(add_zero_line)
-r.map_dataframe(sns.scatterplot, x="pred_prob", y="deviance_resid", alpha=0.6, s=40)
-r.set_axis_labels("Predicted Probability", "Deviance Residual")
-r.set_titles(col_template="{col_name}", row_template="{row_name}")
-r.tight_layout()
-r.savefig('output/mle_diagnostic_residuals.png')
-
-print(f"Diagnostic plots saved to output/ folder")
-plt.close('all')
+print("\nSaved results to data/processed/")
 
