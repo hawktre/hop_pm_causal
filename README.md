@@ -63,5 +63,3 @@ Data cleaning code originally come from Josh Pedro's [2025 Hops Project Github](
 | `src/` | Python and Stan source code for data processing and modeling. |
 | `output/` | Quarto documents (`.qmd`) and generated figures for reporting. |
 | `background/` | Background information or supplemental materials. |
-| `renv/` | R environment configuration files. |
-| `.venv/` | Python virtual environment (local only). |
