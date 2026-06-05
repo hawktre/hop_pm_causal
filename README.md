@@ -36,7 +36,15 @@ python -c "import cmdstanpy; cmdstanpy.install_cmdstan()"
 ```
 In addition, please check their [installation instructions](https://mc-stan.org/cmdstanpy/installation.html#function-install-cmdstan).
 
-### 4. Run the Analysis Scripts
+### 4. Set up R Environment (for Quarto Reports)
+This project uses `renv` to manage R dependencies for the Quarto reports in the `output/` directory.
+
+```bash
+# Start R and restore the environment
+R -e "renv::restore()"
+```
+
+### 5. Run the Analysis Scripts
 Execute the scripts in the `src/` directory in the following order:
 
 1.  **Clean Data:** `python src/00a_CleanData.py`
@@ -49,19 +57,11 @@ Data cleaning code originally come from Josh Pedro's [2025 Hops Project Github](
 
 ## Project Structure
 
-| Folder/File | Description | Inputs | Outputs |
-| :--- | :--- | :--- | :--- |
-| `data/raw/` | Anonymized raw field and cost data. | - | Raw CSV files |
-| `data/processed/` | Datasets cleaned and formatted for analysis. | - | `cost_data.csv`, `data_{year}.npz` |
-| `data/processed/results/` | Output files from the MLE model. | - | `mle_results.csv`, `mle_preds.csv`, `mle_edges_long.csv` |
-| `src/` | Python and Stan source code. | - | - |
-| `src/00a_CleanData.py` | Cleans raw fungicide and incidence data, handles anonymization. | `data/raw/cost/*.csv`, `data/raw/*.csv` | `data/processed/cost_data.csv` |
-| `src/00b_FormatData.py` | Calculates distances and wind vectors, prepares `.npz` files for Stan. | `data/processed/cost_data.csv` | `data/processed/data_{year}.npz` |
-| `src/01_MLE.py` | Executes the MLE model using `cmdstanpy`. | `data/processed/data_{year}.npz`, `src/dispersal_mod.stan` | `data/processed/results/mle_*.csv` |
-| `src/02_compare_MLE.py` | Analyzes model results and generates diagnostic plots. | `data/processed/results/*.csv` | Diagnostic plots in `output/figures/` |
-| `src/03_spatial_preds.py` | Creates spatial visualizations of model predictions. | `data/processed/results/mle_preds.csv` | Spatial visualizations |
-| `src/dispersal_mod.stan` | Stan model definition for dispersal. | - | - |
-| `output/` | Quarto documents and generated figures for reporting. | - | `.qmd` files, PNG figures |
-| `requirements.txt` | Python dependencies. | - | - |
-| `renv.lock` / `renv/` | R environment configuration for Quarto reporting. | - | - |
-| `.venv/` | Python virtual environment (ignored by git). | - | - |
+| Folder | Description |
+| :--- | :--- |
+| `data/` | Contains raw datasets, processed data, and model results. |
+| `src/` | Python and Stan source code for data processing and modeling. |
+| `output/` | Quarto documents (`.qmd`) and generated figures for reporting. |
+| `background/` | Background information or supplemental materials. |
+| `renv/` | R environment configuration files. |
+| `.venv/` | Python virtual environment (local only). |
