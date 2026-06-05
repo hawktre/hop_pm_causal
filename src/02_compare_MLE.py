@@ -7,7 +7,7 @@ import seaborn as sns
 stan_mles = pd.read_csv("data/processed/results/mle_results.csv")
 stan_preds = pd.read_csv("data/processed/results/mle_preds.csv")
 
-# --- 1. DATA PRE-PROCESSING ---
+#Function to read in the data and separate it into objects stacked (across years) and by year
 def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_{year}.npz'):
     data_by_year = {}
     vector_keys = [
@@ -19,22 +19,29 @@ def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_
     ]
     matrix_keys = ['distance', 'wind_apr', 'wind_may', 'wind_jun', 'wind_jul']
 
+    #For each year
     for year in years:
         path = data_path_template.format(year=year)
         try:
+            #Read in the data
             raw_data = np.load(path)
+            #Number of observations in current year
             N_yr = int(raw_data['N'])
+            #Start a dictionary
             processed = {'N': N_yr}
+            #Assign the relevant data to that year
             for key in vector_keys:
                 if key in raw_data:
                     processed[key] = raw_data[key].reshape(N_yr, 1)
             for key in matrix_keys:
                 if key in raw_data:
                     processed[key] = raw_data[key]
+            #Assign the data for that year
             data_by_year[year] = processed
         except FileNotFoundError:
             continue
-
+    
+    #Stack the data so that we have all the years stacked for each month (for the analysis)
     stacked_data = {}
     for key in vector_keys:
         available_arrays = [data_by_year[y][key] for y in data_by_year if key in data_by_year[y]]
@@ -43,16 +50,21 @@ def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_
 
     return data_by_year, stacked_data
 
-# --- 2. STAN INPUT PREPARATION ---
+# Prepare the data for how stan expects it
 def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years):
+    #Define the transitions
     month_map = {'may': 'apr', 'jun': 'may', 'jul': 'jun'}
     lag_month = month_map[analysis_month]
+    #Get the size of the largest year so that we can pad the data with zeros
     N_max = int(max(data_by_year[y]['N'] for y in years))
+    #Total number of years
     T = len(years)
     
+    #Initialize lists to track the indicies in teh stacked data
     year_starts, year_ends, year_sizes = [], [], []
     current_idx = 1 
     
+    #Get the indices and format distance and wind data into arrays (1 slice for each year)
     for y in years:
         N_yr = int(data_by_year[y]['N'])
         year_sizes.append(N_yr)
@@ -68,6 +80,7 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years):
         dist_mats[i, :N_yr, :N_yr] = data_by_year[y]['distance']
         wind_mats[i, :N_yr, :N_yr] = data_by_year[y][f'wind_{lag_month}']
 
+    #Format for stan
     stan_data = {
         "T": T, "N_total": sum(year_sizes), "N_max": N_max,
         "year_starts": year_starts, "year_ends": year_ends, "year_sizes": year_sizes,
@@ -85,13 +98,12 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years):
     }
     return stan_data
 
-
 # Run the code
 years = [2014, 2015, 2016, 2017]
 months = ['may', 'jun', 'jul']
 data_by_year, stacked = load_and_preprocess_hop_data(years)
 
-# Hard code Josh MLEs
+# Hard code seperate MLEs
 seperate_mle = {
     "may": {
         "r6": {
@@ -149,7 +161,7 @@ seperate_mle = {
     },
 }
 
-def compute_predictions_by_year(stan_data, t, month_key, josh_mle):
+def compute_predictions_by_year(stan_data, t, month_key, seperate_mle):
     """
     Computes logit_p and the edge weight matrix for a specific year and month
     using the dual-cultivar parameter dictionary structure.
@@ -193,7 +205,7 @@ def compute_predictions_by_year(stan_data, t, month_key, josh_mle):
     eta1 = np.where(is_r6, p_r6['eta_11'], p_non['eta_21'])
     eta2 = np.where(is_r6, p_r6['eta_12'], p_non['eta_22'])
     
-    # Build pairwise network dispersal matrix (N_yr x N_yr)
+    # Build network dispersal matrix (N_yr x N_yr)
     # matching calc_dispersal_mat from Stan
     kernel = np.zeros((N_yr, N_yr))
     for i in range(N_yr):
@@ -241,15 +253,15 @@ def compute_deviance_residuals(y, n, logit_p):
     sign = np.where(y > y_hat, 1.0, -1.0)
     return sign * np.sqrt(d2)
 
-# --- EXECUTION BLOCK FOR NEW MLE PREDICTIONS ---
-josh_prediction_list = []
-josh_edge_weight_list = []
+# Execute MLE Predictions
+seperate_prediction_list = []
+seperate_edge_weight_list = []
 
-print("\n--- Generating Predictions Using New Cultivar-Specific MLEs ---")
+print("\n--- Generating Predictions for Cultivar-Specific MLEs ---")
 
 for month in months:
     print(f"Processing evaluation metrics for: {month}")
-    # Prior config does not alter values since we bypass optimization, passing 'towards_zero' as placeholder
+    # Prepare the data
     stan_data = prepare_stan_inputs(month, data_by_year, stacked, years)
     
     for t, year in enumerate(years):
@@ -265,7 +277,7 @@ for month in months:
         year_resids = compute_deviance_residuals(y_true, n_true, year_logit_p)
         
         # Save structural network matrix files
-        edge_csv_path = f"data/processed/results/edge_weights/edge_weights_{month}_josh_mle_{year}.csv"
+        edge_csv_path = f"data/processed/results/edge_weights/edge_weights_{month}_seperate_mle_{year}.csv"
         np.savetxt(edge_csv_path, year_edges, delimiter=",")
         
         # Calculate inbound row sum network pressure
@@ -274,7 +286,7 @@ for month in months:
         
         for i in range(N_yr):
             yard_idx = start + i
-            josh_prediction_list.append({
+            seperate_prediction_list.append({
                 'field_id': stacked['field_id'][yard_idx][0],
                 'cultivar': stacked['tI1'][yard_idx][0],
                 'year': year,
@@ -291,7 +303,7 @@ for month in months:
             
             # Unpack full edge weights into flat network list
             for j in range(N_yr):
-                josh_edge_weight_list.append({
+                seperate_edge_weight_list.append({
                     'month': month,
                     'scenario': 'seperate_mle',
                     'year': year,
@@ -301,18 +313,18 @@ for month in months:
                 })
 
 # Convert data arrays to dataframes and output results
-seperate_preds = pd.DataFrame(josh_prediction_list)
-seperate_edges = pd.DataFrame(josh_edge_weight_list)
+seperate_preds = pd.DataFrame(seperate_prediction_list)
+seperate_edges = pd.DataFrame(seperate_edge_weight_list)
 
-seperate_preds.to_csv("data/processed/results/josh_mle_preds.csv", index=False)
-seperate_edges.to_csv("data/processed/results/josh_mle_edges_long.csv", index=False)
-print("Cultivar-specific evaluation datasets written successfully!")
-# --- 6. DIAGNOSTIC PLOTS ---
+seperate_preds.to_csv("data/processed/results/seperate_mle_preds.csv", index=False)
+seperate_edges.to_csv("data/processed/results/seperate_mle_edges_long.csv", index=False)
+
+# Diagnostic Plots
 all_preds = pd.concat([stan_preds, seperate_preds], ignore_index=True)
 print("\n--- Generating Diagnostic Plots ---")
 sns.set_theme(style="whitegrid")
 
-# 1. Observed vs Predicted probabilities
+## Observed vs Predicted probabilities
 g = sns.FacetGrid(all_preds, col="scenario", row="month", height=4, aspect=1.2, 
                   sharex=True, sharey=True, margin_titles=True)
 
@@ -324,9 +336,9 @@ g.map_dataframe(sns.scatterplot, x="pred_prob", y="true_prob", alpha=0.6, s=40, 
 g.set_axis_labels("Predicted Probability", "Observed Proportion (y/n)")
 g.set_titles(col_template="{col_name}", row_template="{row_name}")
 g.tight_layout()
-g.savefig('output/mle_diagnostic_fit.png')
+g.savefig('output/figures/mle_diagnostic_fit.png')
 
-# 2. Residuals vs Fitted
+## Residuals vs Fitted
 r = sns.FacetGrid(all_preds, col="scenario", row="month", height=4, aspect=1.2, 
                   sharex=True, sharey=False, margin_titles=True)
 
@@ -338,8 +350,7 @@ r.map_dataframe(sns.scatterplot, x="pred_prob", y="deviance_resid", alpha=0.6, s
 r.set_axis_labels("Predicted Probability", "Deviance Residual")
 r.set_titles(col_template="{col_name}", row_template="{row_name}")
 r.tight_layout()
-r.savefig('output/mle_diagnostic_residuals.png')
+r.savefig('output/figures/mle_diagnostic_residuals.png')
 
-print("Diagnostic plots saved to output/ folder")
 plt.close('all')
 

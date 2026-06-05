@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import cmdstanpy
 
-# --- 1. DATA PRE-PROCESSING ---
+#Function to read in the data and separate it into objects stacked (across years) and by year
 def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_{year}.npz'):
     data_by_year = {}
     vector_keys = [
@@ -14,22 +14,29 @@ def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_
     ]
     matrix_keys = ['distance', 'wind_apr', 'wind_may', 'wind_jun', 'wind_jul']
 
+    #For each year
     for year in years:
         path = data_path_template.format(year=year)
         try:
+            #Read in the data
             raw_data = np.load(path)
+            #Number of observations in current year
             N_yr = int(raw_data['N'])
+            #Start a dictionary
             processed = {'N': N_yr}
+            #Assign the relevant data to that year
             for key in vector_keys:
                 if key in raw_data:
                     processed[key] = raw_data[key].reshape(N_yr, 1)
             for key in matrix_keys:
                 if key in raw_data:
                     processed[key] = raw_data[key]
+            #Assign the data for that year
             data_by_year[year] = processed
         except FileNotFoundError:
             continue
-
+    
+    #Stack the data so that we have all the years stacked for each month (for the analysis)
     stacked_data = {}
     for key in vector_keys:
         available_arrays = [data_by_year[y][key] for y in data_by_year if key in data_by_year[y]]
@@ -38,16 +45,21 @@ def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_
 
     return data_by_year, stacked_data
 
-# --- 2. STAN INPUT PREPARATION ---
+# Prepare the data for how stan expects it
 def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years, prior_config):
+    #Define the transitions
     month_map = {'may': 'apr', 'jun': 'may', 'jul': 'jun'}
     lag_month = month_map[analysis_month]
+    #Get the size of the largest year so that we can pad the data with zeros
     N_max = int(max(data_by_year[y]['N'] for y in years))
+    #Total number of years
     T = len(years)
     
+    #Initialize lists to track the indicies in teh stacked data
     year_starts, year_ends, year_sizes = [], [], []
     current_idx = 1 
     
+    #Get the indices and format distance and wind data into arrays (1 slice for each year)
     for y in years:
         N_yr = int(data_by_year[y]['N'])
         year_sizes.append(N_yr)
@@ -63,6 +75,7 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years, prior
         dist_mats[i, :N_yr, :N_yr] = data_by_year[y]['distance']
         wind_mats[i, :N_yr, :N_yr] = data_by_year[y][f'wind_{lag_month}']
 
+    #Format for stan
     stan_data = {
         "T": T, "N_total": sum(year_sizes), "N_max": N_max,
         "year_starts": year_starts, "year_ends": year_ends, "year_sizes": year_sizes,
@@ -81,7 +94,7 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years, prior
     }
     return stan_data
 
-# --- 3. CONFIGURATIONS ---
+# --- Specify Priors ---
 prior_scenarios = {
     "towards_zero": {
         "beta_mu": 0, "beta_sigma": 10, #log-normal
@@ -104,10 +117,11 @@ prior_scenarios = {
 years = [2014, 2015, 2016, 2017]
 months = ['may', 'jun', 'jul']
 seeds = range(100, 110)
+#Compile the model and prep the data
 stan_model = cmdstanpy.CmdStanModel(stan_file="src/dispersal_mod.stan")
 data_by_year, stacked = load_and_preprocess_hop_data(years)
 
-# --- MAIN EXECUTION LOOP ---
+# --- Fit the model ---
 all_tidy_rows = []
 prediction_list = []
 edge_weight_list = []
@@ -120,6 +134,7 @@ for month in months:
         seed_results = []
         params = ['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2']
         
+        #Fit the model for multiple inits and see if they converge to the same thing
         for s in seeds:
             try:
                 current_fit = stan_model.optimize(data=stan_data, seed=s, jacobian=False)
@@ -170,7 +185,7 @@ for month in months:
             print(f"Laplace failed for {month}/{scenario_name}: {e}")
             std_errors = np.full(len(params), np.nan)
 
-        # Record tidy results for the best fit
+        # Record results for the best fit
         for i, p_name in enumerate(params):
             all_tidy_rows.append({
                 'month': month,
@@ -208,7 +223,6 @@ for month in months:
             np.savetxt(edge_csv_path, year_edges, delimiter=",")
 
             # Sum incoming edge weights (columns) for each target yard (rows)
-            # This represents the total neighborhood pressure on each yard
             total_neighborhood_pressure = np.sum(year_edges, axis=1)
             probs = 1 / (1 + np.exp(-year_logit_p))
             
@@ -240,7 +254,7 @@ for month in months:
                         'weight': year_edges[i, j]
                     })
 
-# --- 5. RESULTS ---
+# Compute Confidence Intervals and Save Results
 df_results = pd.DataFrame(all_tidy_rows)
 df_results['lower_95'] = df_results['estimate'] - (1.96 * df_results['std_error']) 
 df_results['upper_95'] = df_results['estimate'] + (1.96 * df_results['std_error'])
@@ -251,11 +265,11 @@ print(df_results)
 # Save MLE results
 df_results.to_csv('data/processed/results/mle_results.csv', index=False)
 
-# Save Predictions (Pivoted by Scenario)
+# Save Predictions 
 df_preds = pd.DataFrame(prediction_list)
 df_preds.to_csv("data/processed/results/mle_preds.csv", index=False)
 
-# Save Edge Weights (Full pairwise matrices)
+# Save Edge Weights 
 df_edges = pd.DataFrame(edge_weight_list)
 df_edges.to_csv("data/processed/results/mle_edges_long.csv", index=False)
 print("\nSaved results to data/processed/")

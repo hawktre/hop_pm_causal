@@ -188,6 +188,109 @@ $${#eq-edge-weight}
 In the particular case of the previous model formulation, our model will be formulated as 
 
 $$
-\log\left(\frac{p_i}{1-p_i}\right) = \beta + \delta\left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}}\exp(-\eta_1 s_i)\right) + \gamma \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_j z_j}{n_{z_j}} \exp(-\eta_2 s_j) w_{ij} f(d_{ij}; \alpha) \right)
-$$ 
+\eta_i = \log\left(\frac{p_i}{1-p_i}\right) = \beta + \delta\left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}}\exp(-\eta_1 s_i)\right) + \gamma \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_j z_j}{n_{z_j}} \exp(-\eta_2 s_j) w_{ij} f(d_{ij}; \alpha) \right)
+$${#eq-newmod}
 
+We will estimate this model via non-linear optimization with `BFGS`. As such, we should consider the gradients and observed fisher information. Assuming our outcome $y_{i,t} \sim \mathrm{Binomial}(N_{i,t}, p_{i,t})$, the likelihood may be written as: 
+
+$$
+\mathcal{L}(n_{it}, p_{it}; y_{it}) = \prod_{i=1}^n\binom{n_{it}}{y_{it}} p_{it}^{y_{it}} (1 - p_{it})^{n_{it} - y_{it}}
+$$
+
+and the log-likelihood as 
+
+$$
+l(n_{it}, p_{it}; y_{it}) = \sum_{i =1}^n \log c + y_{it}\log(p_{it}) + (n_{it} - y_{it})\log(1 - p_{it})
+$$
+
+This gives expectation and variance 
+
+$$
+\mathbb{E}[y_{it}] = n_{it}p_{it} \qquad \mathrm{Var}[y_{it}] = n_{it}p_{it}(1-p_{it})
+$$
+
+When $n_{it}$ is known, we can model $p_{it}$ as in @eq-new-mod such that 
+
+$$
+\mathbb{E}\left[\frac{y_{it}}{n_{it}}\right] = p_{it} = \frac{e^{\eta_{it}}}{1 + e^{\eta_{it}}} = \frac{1}{1 + e^{-\eta_{it}}}
+$$
+
+Thus, we can rewrite our log=likelihood as: 
+
+$$
+\begin{split}
+l(n_{it}, p_{it}; y_{it}) &= \sum_{i =1}^n \log c - y_{it}\log\left(1 + e^{-\eta_{it}}\right) + (n_{it} - y_{it})\log\left(1 - \frac{1}{1 + e^{-\eta_{it}}}\right) \\
+&= \sum_{i =1}^n \log c - y_{it}\log\left(1 + e^{-\eta_{it}}\right) + (n_{it} - y_{it})\log\left(\frac{e^{-\eta_{it}}}{1 + e^{-\eta_{it}}}\right) \\
+&= \sum_{i =1}^n \log c - y_{it}\log\left(1 + e^{-\eta_{it}}\right) + (n_{it} - y_{it})\left[-\eta_{it} - \log\left(1 + e^{-\eta_{it}}\right)\right] \\
+&= \sum_{i =1}^n \log c - n_{it}\log\left(1 + e^{-\eta_{it}}\right) - (n_{it} - y_{it})\eta_{it}
+\end{split}
+$$
+
+Taking the partial derivative with respect to $\eta_{it}$ observation by observation, we apply the chain rule to the log term:
+
+$$
+\begin{split}
+\frac{\partial l}{\partial \eta_{it}} &= -n_{it} \cdot \frac{1}{1 + e^{-\eta_{it}}} \cdot \frac{\partial}{\partial \eta_{it}}\left(1 + e^{-\eta_{it}}\right) - (n_{it} - y_{it}) \\
+&= -n_{it} \cdot \frac{1}{1 + e^{-\eta_{it}}} \cdot \left(-e^{-\eta_{it}}\right) - n_{it} + y_{it} \\
+&= n_{it} \left( \frac{e^{-\eta_{it}}}{1 + e^{-\eta_{it}}} \right) - n_{it} + y_{it}
+\end{split}
+$$
+
+By applying the chain rule, the gradient of the total log-likelihood with respect to any generic parameter $\theta$ across all observations is structured as:
+$$
+\frac{\partial l}{\partial \theta} = \sum_{i} (y_{it} - n_{it} p_{it}) \frac{\partial \eta_{it}}{\partial \theta}
+$$
+
+In the case of @eq-new-mod, we have 
+
+$$
+\begin{split}
+\frac{\partial \eta_{it}}{\partial \beta} &= 1 \\
+\frac{\partial \eta_{it}}{\partial \delta} &= \frac{\tilde{y}_{it}}{n_{\tilde{y}_{it}}}\exp(-\eta_1 s_{it}) \\
+\frac{\partial \eta_{it}}{\partial \gamma} &= \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_{jt} z_{jt}}{n_{z_{jt}}} \exp(-\eta_2 s_{jt}) w_{ij} (1 + d_{ij})^{-\alpha} \right) \\
+\frac{\partial \eta_{it}}{\partial \eta_1} &= -\delta \left(\frac{\tilde{y}_{it}}{n_{\tilde{y}_{it}}} s_{it} \exp(-\eta_1 s_{it})\right) \\
+\frac{\partial \eta_{it}}{\partial \eta_2} &= -\gamma \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_{jt} z_{jt}}{n_{z_{jt}}} s_{jt} \exp(-\eta_2 s_{jt}) w_{ij} (1 + d_{ij})^{-\alpha} \right) \\
+\frac{\partial \eta_{it}}{\partial \alpha} &= -\gamma \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_{jt} z_{jt}}{n_{z_{jt}}} \exp(-\eta_2 s_{jt}) w_{ij} (1 + d_{ij})^{-\alpha} \log(1 + d_{ij}) \right)
+\end{split}
+$$
+
+In the case of the `BFGS` quasi-Newtonian algorithm, we are trying to approximate the Hessian. In general, the Hessian is given by 
+
+$$
+\begin{split}
+\frac{\partial l}{\partial \theta_j} &= \sum_{i=1}^n \left[ y_i - n_i \left( \frac{1}{1 + e^{-\eta_i}} \right) \right] \frac{\partial \eta_i}{\partial \theta_j} \\
+\frac{\partial^2 l}{\partial \theta_j \partial \theta_k} &= \sum_{i=1}^n \frac{\partial}{\partial \theta_k} \left( \left[ y_i - n_i \left( \frac{1}{1 + e^{-\eta_i}} \right) \right] \frac{\partial \eta_i}{\partial \theta_j} \right) \\
+&= \sum_{i=1}^n \left[ \frac{\partial}{\partial \theta_k} \left( y_i - n_i \left( \frac{1}{1 + e^{-\eta_i}} \right) \right) \frac{\partial \eta_i}{\partial \theta_j} + \left[ y_i - n_i \left( \frac{1}{1 + e^{-\eta_i}} \right) \right] \frac{\partial^2 \eta_i}{\partial \theta_j \partial \theta_k} \right] \\
+&= \sum_{i=1}^n \left[ -n_i \left( \frac{e^{-\eta_i}}{(1 + e^{-\eta_i})^2} \right) \frac{\partial \eta_i}{\partial \theta_k}\frac{\partial \eta_i}{\partial \theta_j} + \left[ y_i - n_i \left( \frac{1}{1 + e^{-\eta_i}} \right) \right] \frac{\partial^2 \eta_i}{\partial \theta_j \partial \theta_k} \right]
+\end{split}
+$$
+
+Thus, we need to compute the second-order terms $\frac{\partial^2 \eta_i}{\partial \theta_j \partial \theta_k}$. The second derivatives are given by: 
+$$
+\begin{split}
+\frac{\partial^2 \eta_i}{\partial \beta^2} &= 0 \\
+\frac{\partial^2 \eta_i}{\partial \delta^2} &= 0 \\
+\frac{\partial^2 \eta_i}{\partial \gamma^2} &= 0 \\
+\frac{\partial^2 \eta_i}{\partial \eta_1^2} &= \delta \left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}} s_i^2 \exp(-\eta_1 s_i)\right) \\
+\frac{\partial^2 \eta_i}{\partial \eta_2^2} &= \gamma \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_j z_j}{n_{z_j}} s_j^2 \exp(-\eta_2 s_j) w_{ij} (1 + d_{ij})^{-\alpha} \right) \\
+\frac{\partial^2 \eta_i}{\partial \alpha^2} &= \gamma \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_j z_j}{n_{z_j}} \exp(-\eta_2 s_j) w_{ij} (1 + d_{ij})^{-\alpha} \left[\log(1 + d_{ij})\right]^2 \right)
+\end{split}
+$$
+
+The non-zero cross-terms are given by 
+
+**Auto-infection Block**
+$$
+\begin{split}
+\frac{\partial^2 \eta_i}{\partial \delta \partial \eta_1} &= -\left(\frac{\tilde{y}_i}{n_{\tilde{y}_i}} s_i \exp(-\eta_1 s_i)\right)
+\end{split}
+$$
+
+**Dispersal/Neighborhood Block**
+$$
+\begin{split}
+\frac{\partial^2 \eta_i}{\partial \gamma \partial \eta_2} &= -\sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_j z_j}{n_{z_j}} s_j \exp(-\eta_2 s_j) w_{ij} (1 + d_{ij})^{-\alpha} \right) \\
+\frac{\partial^2 \eta_i}{\partial \gamma \partial \alpha} &= -\sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_j z_j}{n_{z_j}} \exp(-\eta_2 s_j) w_{ij} (1 + d_{ij})^{-\alpha} \log(1 + d_{ij}) \right) \\
+\frac{\partial^2 \eta_i}{\partial \eta_2 \partial \alpha} &= \gamma \sum_{j\neq i} \left(\mathbf{A}_{ij} \frac{a_j z_j}{n_{z_j}} s_j \exp(-\eta_2 s_j) w_{ij} (1 + d_{ij})^{-\alpha} \log(1 + d_{ij}) \right)
+\end{split}
+$$
