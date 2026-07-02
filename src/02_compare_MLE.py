@@ -91,7 +91,7 @@ years = [2014, 2015, 2016, 2017]
 months = ['may', 'jun', 'jul']
 data_by_year, stacked = load_and_preprocess_hop_data(years)
 
-# Hard code Josh MLEs
+# Hard code seperate MLEs
 seperate_mle = {
     "may": {
         "r6": {
@@ -149,7 +149,7 @@ seperate_mle = {
     },
 }
 
-def compute_predictions_by_year(stan_data, t, month_key, josh_mle):
+def compute_predictions_by_year(stan_data, t, month_key, seperate_mle):
     """
     Computes logit_p and the edge weight matrix for a specific year and month
     using the dual-cultivar parameter dictionary structure.
@@ -242,10 +242,10 @@ def compute_deviance_residuals(y, n, logit_p):
     return sign * np.sqrt(d2)
 
 # --- EXECUTION BLOCK FOR NEW MLE PREDICTIONS ---
-josh_prediction_list = []
-josh_edge_weight_list = []
+seperate_prediction_list = []
+seperate_edge_weight_list = []
 
-print("\n--- Generating Predictions Using New Cultivar-Specific MLEs ---")
+print("\n--- Generating Predictions for Cultivar-Specific MLEs ---")
 
 for month in months:
     print(f"Processing evaluation metrics for: {month}")
@@ -265,7 +265,7 @@ for month in months:
         year_resids = compute_deviance_residuals(y_true, n_true, year_logit_p)
         
         # Save structural network matrix files
-        edge_csv_path = f"data/processed/results/edge_weights/edge_weights_{month}_josh_mle_{year}.csv"
+        edge_csv_path = f"data/processed/results/edge_weights/edge_weights_{month}_seperate_mle_{year}.csv"
         np.savetxt(edge_csv_path, year_edges, delimiter=",")
         
         # Calculate inbound row sum network pressure
@@ -274,7 +274,7 @@ for month in months:
         
         for i in range(N_yr):
             yard_idx = start + i
-            josh_prediction_list.append({
+            seperate_prediction_list.append({
                 'field_id': stacked['field_id'][yard_idx][0],
                 'cultivar': stacked['tI1'][yard_idx][0],
                 'year': year,
@@ -291,7 +291,7 @@ for month in months:
             
             # Unpack full edge weights into flat network list
             for j in range(N_yr):
-                josh_edge_weight_list.append({
+                seperate_edge_weight_list.append({
                     'month': month,
                     'scenario': 'seperate_mle',
                     'year': year,
@@ -301,11 +301,11 @@ for month in months:
                 })
 
 # Convert data arrays to dataframes and output results
-seperate_preds = pd.DataFrame(josh_prediction_list)
-seperate_edges = pd.DataFrame(josh_edge_weight_list)
+seperate_preds = pd.DataFrame(seperate_prediction_list)
+seperate_edges = pd.DataFrame(seperate_edge_weight_list)
 
-seperate_preds.to_csv("data/processed/results/josh_mle_preds.csv", index=False)
-seperate_edges.to_csv("data/processed/results/josh_mle_edges_long.csv", index=False)
+seperate_preds.to_csv("data/processed/results/seperate_mle_preds.csv", index=False)
+seperate_edges.to_csv("data/processed/results/seperate_mle_edges_long.csv", index=False)
 print("Cultivar-specific evaluation datasets written successfully!")
 # --- 6. DIAGNOSTIC PLOTS ---
 all_preds = pd.concat([stan_preds, seperate_preds], ignore_index=True)

@@ -37,7 +37,7 @@ functions {
     // Adjust neighbor source strength by their specific spray history
     vector[N] effective_source = source_strength .* exp(-eta2 * sprays_prev);
     
-    // Vector-matrix multiplication results in a vector[N]
+    // Multiply and sum over the columns (dot product)
     vector[N] dispersal_pressure = (wind_local .* kernel) * effective_source;
     
     return dispersal_pressure;
@@ -78,7 +78,7 @@ functions {
     // Adjust neighbor source strength by their specific spray history
     vector[N] effective_source = source_strength .* exp(-eta2 * sprays_prev);
     
-    // Replicate effective source column vector into an N x N matrix for element-wise math
+    // Replicate effective source column vector into an N x N matrix for element-wise multiplication
     matrix[N, N] effective_source_mat = rep_matrix(effective_source, N);
     
     // Element-wise multiplication results in an N x N matrix
@@ -115,7 +115,7 @@ data {
   array[T] matrix[N_max, N_max] dist_mats;
   array[T] matrix[N_max, N_max] wind_mats;
 
-    // Prior Hyperparameters
+  // Prior Hyperparameters
   real beta_mu;    real beta_sigma;
   real delta_mu;   real delta_sigma;
   real gamma_mu;   real gamma_sigma;
@@ -124,15 +124,16 @@ data {
   real eta2_mu;    real eta2_sigma;
 }
 transformed data {
+  //Pre compute the weighted incidence
   vector[N_total] source_strength = a_lag .* (y_lag ./ n_lag);
 }
 parameters {
   real beta; // Global Intercept
-  real <lower = 0> delta; // Global Auto-infection magnitude
-  real <lower = 0> gamma; // Global Dispersal magnitude
-  real <lower = 0> alpha; // Dispersal kernel decay
-  real <lower = 0> eta1; // Auto-infection spray decay
-  real <lower = 0> eta2; // Neighborhood spray decay
+  real  delta; // Global Auto-infection magnitude
+  real  gamma; // Global Dispersal magnitude
+  real  alpha; // Dispersal kernel decay
+  real eta1; // Auto-infection spray decay
+  real  eta2; // Neighborhood spray decay
 
 }
 
@@ -166,19 +167,19 @@ model {
   beta ~ normal(beta_mu, beta_sigma);
   
   // Auto-infection (Log-Normal)
-  delta ~ lognormal(delta_mu, delta_sigma);
+  delta ~ normal(delta_mu, delta_sigma);
   
   // Dispersal magnitude (Log-Normal)
-  gamma ~ lognormal(gamma_mu, gamma_sigma);
+  gamma ~ normal(gamma_mu, gamma_sigma);
   
   // Distance decay 
-  alpha ~ lognormal(alpha_mu, alpha_sigma);
+  alpha ~ normal(alpha_mu, alpha_sigma);
   
   // Sprays decay 
-  eta1 ~ lognormal(eta1_mu, eta1_sigma);
-  eta2 ~ lognormal(eta2_mu, eta2_sigma);
+  eta1 ~ normal(eta1_mu, eta1_sigma);
+  eta2 ~ normal(eta2_mu, eta2_sigma);
 
-  // Likelihood// Fixed: Changed beta_binomial_logit to beta_binomial
+  // Likelihood
   y ~ binomial_logit(n, logit_p);
 }
 
@@ -186,6 +187,7 @@ generated quantities {
   array[T] matrix[N_max, N_max] edge_weights;
   vector[N_total] deviance_resid;
   
+  //Compute the deviance residual for the binomial
   {
     vector[N_total] p = inv_logit(logit_p);
     for (i in 1 : N_total) {
@@ -210,14 +212,14 @@ generated quantities {
     vector[N_yr] sI1_y = sI1_lag[start : end];
     vector[N_yr] cult_y = cultivar[start : end];
     
-    // Initialize this year's matrix entirely with zeros
+    // Initialize this year's matrix with zeros
     edge_weights[t] = rep_matrix(0.0, N_max, N_max);
     
     // Calculate the smaller local dispersal matrix (N_yr x N_yr)
     matrix[N_yr, N_yr] disp_yr = calc_dispersal_mat(dist_mats[t], wind_mats[t], ss_y,
                                                     sI1_y, s_y, cult_y, alpha, eta2);
     
-    // Assign the local matrix into the top-left corner of the padded matrix
+    // Assign to our edge weights matrix
     edge_weights[t][1 : N_yr, 1 : N_yr] = gamma * disp_yr;
   }
 }
