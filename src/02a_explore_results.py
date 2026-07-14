@@ -1,8 +1,10 @@
-import   cmdstanpy
+import os
+import cmdstanpy
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import arviz as az
+import glob
 
 # Read in the raw data
 data_by_year = np.load("data/processed/data_by_year.npz", allow_pickle=True)['arr_0'].item()
@@ -61,49 +63,90 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years):
     return stan_data, unique_ids
 
 years = [2014, 2015, 2016, 2017]
-months = ['may', 'jun', 'jul']
+results_dir = "results/stan_fits"
 
-
-# Read in the Stan fit results for the month of interest
-month = "jul"
-time = "2026_07_09_1904"
-fit = cmdstanpy.from_csv(f"results/stan_fits/{month}/weakly_informative/{time}/")
-# Extract the posterior draws for plotting
-params = ['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2', 'zi', 'phi']
-# Force observed data to integer type
-y_observed = stacked[f'y_{month}'].flatten().astype(int)
-
-# Re-build your idata object using the raw year_id values
-idata = az.from_cmdstanpy(
-    posterior=fit,
-    observed_data={"y_rep": y_observed},     # same name as posterior_predictive now
-    posterior_predictive="y_rep",
-    dims={"y_rep": ["obs"]},
-    coords={"obs": stan_data['year_id']},
-    dtypes={"y_rep": int},
-)
-
-# Generate trace plots for selected parameters
-az.plot_trace(idata, var_names=params)
-plt.suptitle(f"Trace Plots for Month: {month}", fontsize=16)
-plt.savefig(f"output/figures/hmc_diagnostics/{month}_trace_plots.png", dpi=300, bbox_inches='tight')
-
-# Generate autocorrelation plots for selected parameters
-az.plot_autocorr(idata, var_names=params)
-plt.suptitle(f"Autocorrelation Plots for Month: {month}", fontsize=16)
-plt.savefig(f"output/figures/hmc_diagnostics/{month}_autocorr_plots.png", dpi=300, bbox_inches='tight')
-
-# Generate Distribution Plots for selected parameters
-az.plot_dist(idata, var_names=params)
-plt.suptitle(f"Posterior Distributions for Month: {month}", fontsize=16)
-plt.savefig(f"output/figures/hmc_diagnostics/{month}_posterior_distributions.png", dpi=300, bbox_inches='tight')
-
-# Generate Posterior Predictive Checks (PPC) for the month of interest
-az.plot_ppc_rootogram(idata)
-plt.xlim([-1,50])
-plt.title(f"Posterior Predictive Checks (Rootogram) for Month: {month}", fontsize=16)
-plt.savefig(f"output/figures/hmc_diagnostics/{month}_ppc_rootogram.png", dpi=300, bbox_inches='tight')
-
-#Generate a table summary of the posterior estimates for the parameters of interest
-posterior_summary = az.summary(idata, var_names=params)
-posterior_summary.to_csv(f"output/figures/hmc_diagnostics/{month}_posterior_summary.csv")
+if os.path.exists(results_dir):
+    # Find all models (directories under results/stan_fits/)
+    models = [d for d in os.listdir(results_dir) if os.path.isdir(os.path.join(results_dir, d))]
+    
+    for model in models:
+        model_path = os.path.join(results_dir, model)
+        months = [d for d in os.listdir(model_path) if os.path.isdir(os.path.join(model_path, d))]
+        
+        for month in months:
+            fit_dir = os.path.join(model_path, month)
+            csv_files = glob.glob(os.path.join(fit_dir, "*.csv"))
+            
+            # Skip if there are no CSV files (fit outputs)
+            if not csv_files:
+                continue
+                
+            print(f"Generating diagnostics for Model: {model}, Month: {month}...")
+            
+            try:
+                # Read in the Stan fit results
+                fit = cmdstanpy.from_csv(fit_dir)
+                
+                # Determine parameters based on model type
+                if 'zero_inflated_beta_binomial' in model:
+                    params = ['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2', 'pi', 'phi']
+                elif 'zero_inflated_binomial' in model:
+                    params = ['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2', 'pi']
+                else:  # binomial
+                    params = ['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2']
+                
+                # Force observed data to integer type for this month
+                y_observed = stacked[f'y_{month}'].flatten().astype(int)
+                
+                # Prepare stan inputs to get year_id
+                stan_data, _ = prepare_stan_inputs(month, data_by_year, stacked, years)
+                
+                # Re-build your idata object using the raw year_id values
+                idata = az.from_cmdstanpy(
+                    posterior=fit,
+                    observed_data={"y_rep": y_observed},     # same name as posterior_predictive now
+                    posterior_predictive="y_rep",
+                    dims={"y_rep": ["obs"]},
+                    coords={"obs": stan_data['year_id']},
+                    dtypes={"y_rep": int},
+                )
+                
+                # Setup output directory for diagnostics
+                output_dir = f"output/figures/hmc_diagnostics/{model}/{month}"
+                os.makedirs(output_dir, exist_ok=True)
+                
+                # Generate trace plots for selected parameters
+                az.plot_trace(idata, var_names=params)
+                plt.suptitle(f"Trace Plots - {model} ({month})", fontsize=16)
+                plt.savefig(f"{output_dir}/trace_plots.png", dpi=300, bbox_inches='tight')
+                plt.close('all')
+                
+                # Generate autocorrelation plots for selected parameters
+                az.plot_autocorr(idata, var_names=params)
+                plt.suptitle(f"Autocorrelation Plots - {model} ({month})", fontsize=16)
+                plt.savefig(f"{output_dir}/autocorr_plots.png", dpi=300, bbox_inches='tight')
+                plt.close('all')
+                
+                # Generate Distribution Plots for selected parameters
+                az.plot_dist(idata, var_names=params)
+                plt.suptitle(f"Posterior Distributions - {model} ({month})", fontsize=16)
+                plt.savefig(f"{output_dir}/posterior_distributions.png", dpi=300, bbox_inches='tight')
+                plt.close('all')
+                
+                # Generate Posterior Predictive Checks (PPC) for the month of interest
+                az.plot_ppc_rootogram(idata)
+                plt.title(f"Posterior Predictive Checks (Rootogram) - {model} ({month})", fontsize=16)
+                plt.savefig(f"{output_dir}/ppc_rootogram.png", dpi=300, bbox_inches='tight')
+                plt.close('all')
+                
+                # Generate a table summary of the posterior estimates
+                posterior_summary = az.summary(idata, var_names=params)
+                posterior_summary.to_csv(f"{output_dir}/posterior_summary.csv")
+                
+                print(f"Finished diagnostics for {model}/{month}. Saved to {output_dir}")
+                
+            except Exception as e:
+                print(f"Error processing {model}/{month}: {e}")
+                plt.close('all')
+else:
+    print(f"Results directory not found at: {results_dir}")
