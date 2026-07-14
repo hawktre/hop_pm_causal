@@ -38,7 +38,7 @@ format:
     cap-location: bottom
     tbl-cap-location: top
     header-includes: 
-      - \usepackage{fancyhdr, amsthm, amssymb,amsfonts,amsthm, amsmath, bbm, tikz}
+      - \usepackage{fancyhdr, amsthm, amssymb,amsfonts,amsthm, amsmath, bbm, tikz, booktabs, multirow}
       - \usepackage{float, tabularx}
       - \usetikzlibrary{positioning, arrows.meta} 
       - \floatplacement{table}{H}
@@ -205,32 +205,36 @@ Stan is naturally a Probabalistic Programming Language (ProbProg), and as such r
 \begin{table}
 \centering
 \vspace{0.3cm}
-\footnotesize
-\begin{tabular}{l c l cc cc}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{l c ccc ccc ccc}
 \toprule
- &  &  & \multicolumn{2}{c}{\textbf{Regularized}} & \multicolumn{2}{c}{\textbf{Informed}} \\
-\cmidrule(lr){4-5} \cmidrule(lr){6-7}
-\textbf{Parameter}& \textbf{Constraint} & \textbf{$p(\theta)$}& \textbf{Location} ($\mu$) & \textbf{Scale} ($\sigma^2$) & \textbf{Location} ($\mu$) & \textbf{Scale} ($\sigma^2$) \\
+ &  & \multicolumn{3}{c}{\textbf{Weakly Informative (HMC)}} & \multicolumn{3}{c}{\textbf{Regularized (MLE)}} & \multicolumn{3}{c}{\textbf{Informed (MLE)}} \\
+\cmidrule(lr){3-5} \cmidrule(lr){6-8} \cmidrule(lr){9-11}
+\textbf{Parameter}& \textbf{Constraint} & \textbf{$p(\theta)$}& \textbf{Location} ($\mu$) & \textbf{Scale} ($\sigma$) & \textbf{$p(\theta)$}& \textbf{Location} ($\mu$) & \textbf{Scale} ($\sigma$) & \textbf{$p(\theta)$}& \textbf{Location} ($\mu$) & \textbf{Scale} ($\sigma$) \\
 \midrule
-$\beta$ (Baseline Intercept) & $(-\infty, \infty)$ & Normal & 0.0 & 100.0 & $-2.5$ & 100.0 \\
+$\beta$ (Baseline Intercept) & $(-\infty, \infty)$ & Normal & 0.0 & 2.5 & Normal & 0.0 & 10.0 & Normal & $-2.5$ & 10.0 \\
 \addlinespace
-$\delta$ (Auto-infection) & $[0, \infty)$ & Log-Normal & 0.0 & 1.0 & 1.0 & 1.0 \\
+$\delta$ (Auto-infection) & $(0, \infty)$ & Half-Normal & 0.0 & 2.5 & Log-Normal & 0.0 & 1.0 & Log-Normal & 1.0 & 1.0 \\
 \addlinespace
-$\gamma$ (Dispersal Magnitude) & $[0, \infty)$ & Log-Normal & 0.0 & 1.0 & 7.5 & 1.0 \\
+$\gamma$ (Dispersal Magnitude) & $(0, \infty)$ & Half-Normal & 0.0 & 2.5 & Log-Normal & 0.0 & 1.0 & Log-Normal & 7.5 & 1.0 \\
 \addlinespace
-$\alpha$ (Kernel Decay) & $[0, \infty)$ & Log-Normal & 1.0 & 1.0 & 1.0 & 1.0 \\
+$\alpha$ (Kernel Decay) & $(0, \infty)$ & Half-Normal & 0.0 & 2.5 & Log-Normal & 1.0 & 1.0 & Log-Normal & 1.0 & 1.0 \\
 \addlinespace
-$\eta_1$ (Auto-infection Decay) & $[0, \infty)$ & Log-Normal & 0.0 & 1.0 & 0.0 & 1.0 \\
+$\eta_1$ (Auto-infection Decay) & $(0, \infty)$ & Half-Normal & 0.0 & 2.5 & Log-Normal & 0.0 & 1.0 & Log-Normal & 0.0 & 1.0 \\
 \addlinespace
-$\eta_2$ (Dispersal Decay) & $[0, \infty)$ & Log-Normal & 0.0 & 1.0 & 0.0 & 1.0 \\
+$\eta_2$ (Dispersal Decay) & $(0, \infty)$ & Half-Normal & 0.0 & 2.5 & Log-Normal & 0.0 & 1.0 & Log-Normal & 0.0 & 1.0 \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
-\small Parameter Constraints and Hyperparameter Distributions under Alternative Prior Scenarios
+\small Parameter constraints and prior distributions used in each modeling scenario. Maximum Likelihood Estimation (MLE) was conducted using the L-BFGS algorithm in Stan, while Hamiltonian Monte Carlo (HMC) sampling was used for Bayesian inference. The weakly informative priors were used to regularize the parameter estimates, while the informed priors were based on previous maximization attempts. Stronger regularization in combination with the Log-normal distribution, which has no mass at zero, was used for the MLE scenarios to improve convergence and identifiability of the parameters.
 :::
 
 Note from @tbl-priors, we tried two different types of priors. One set that simply regularizes towards zero (closely related to the L2 penalty) and one that uses information from previous maximization attempts (informed). Due to the non-linear nature of the model and potention multi-modality, we tried 10 sets of randomly generated initial values from the priors and checked for convergence to a global maximum. 
+
+## Hamiltonian Monte Carlo (HMC) Sampling in Stan
+We also implemented the model in a Bayesian framework using Hamiltonian Monte Carlo (HMC) sampling. We used weakly informative prior specifications as in @tbl-priors and ran 4 chains of 2000 iterations each, with the first 1000 iterations discarded as warm-up. We assessed convergence using the potential scale reduction factor (R-hat) and effective sample size (ESS). Sufficient convergence was indicated by R-hat values close to 1 (<1.01) and ESS values that were sufficiently large relative to the number of iterations for all parameters. We also examined trace plots and posterior density plots to ensure proper mixing of the chains. 
 
 # Results
 Below we present the parameter estimates and standard errors under each prior scenario presented in @tbl-priors. We then conduct some basic forms of model-checking to verify model fit.
@@ -241,12 +245,18 @@ Below we present the parameter estimates and standard errors under each prior sc
 #| echo: false
 #| message: false
 #| warning: false
+#| label: tbl-mle-results
+#| tbl-cap: Maximum Likelihood Estimates (MLE) and Standard Errors Across Scenarios
+
 library(tidyverse)
 library(here)
 library(kableExtra)
 
-mle_df <- read.csv(here("data/processed/results/mle_results.csv"))
-mle_clean <- mle_df |> select(month, scenario, parameter, n_converged, estimate, std_error)
+mle_df <- read.csv(here("results/mle/mle_results.csv"))
+mle_clean <- mle_df |> select(month, scenario, parameter, n_converged, estimate, std_error, lower_95, upper_95) |> 
+  mutate(month = str_to_lower(month),
+         scenario = str_to_lower(scenario),
+         parameter = str_to_lower(parameter))
 
 generate_latex_mle_table <- function(df, output_path = NULL) {
   # 1. Clean and normalize values
@@ -263,6 +273,8 @@ generate_latex_mle_table <- function(df, output_path = NULL) {
     summarise(
       estimate = mean(estimate, na.rm = TRUE),
       std_error = mean(std_error, na.rm = TRUE),
+      lower_95 = mean(lower_95, na.rm = TRUE),
+      upper_95 = mean(upper_95, na.rm = TRUE),
       .groups = "drop"
     )
   
@@ -282,7 +294,7 @@ generate_latex_mle_table <- function(df, output_path = NULL) {
   pivot_df <- df_sorted %>%
     pivot_wider(
       names_from = scenario,
-      values_from = c(estimate, std_error),
+      values_from = c(estimate, std_error, lower_95, upper_95),
       names_glue = "{scenario}_{.value}"
     )
   
@@ -310,8 +322,12 @@ generate_latex_mle_table <- function(df, output_path = NULL) {
       parameter_col,
       towards_zero_estimate,
       towards_zero_std_error,
+      towards_zero_lower_95,
+      towards_zero_upper_95,
       informed_priors_estimate,
-      informed_priors_std_error
+      informed_priors_std_error,
+      informed_priors_lower_95,
+      informed_priors_upper_95
     ) %>%
     mutate(across(where(is.numeric), ~ sprintf("%.3f", .)))
   
@@ -329,13 +345,11 @@ generate_latex_mle_table <- function(df, output_path = NULL) {
     format = "latex",
     booktabs = TRUE,
     escape = FALSE,
-    align = "ll|cc|cc",
-    col.names = c("Month", "Parameter", "Estimate", "Std. Error", "Estimate", "Std. Error"),
-    caption = "Maximum Likelihood Estimates (MLE) and Standard Errors Across Scenarios",
-    label = "mle-results"
+    align = "ll|cccc|cccc",
+    col.names = c("Month", "Parameter", "Estimate", "Std. Error", "LCI", "UCI", "Estimate", "Std. Error", "LCI", "UCI")
   ) %>%
-    kable_styling(latex_options = c("hold_position", "striped"), font_size = 9) %>%
-    add_header_above(c(" " = 1, " " = 1, "Regularized" = 2, "Informed" = 2))
+    kable_styling(latex_options = c("striped"), font_size = 9) %>%
+    add_header_above(c(" " = 1, " " = 1, "Regularized" = 4, "Informed" = 4))
   
   # Apply dynamic spacing between month groups
   for (r in space_rows) {
@@ -354,8 +368,95 @@ generate_latex_mle_table <- function(df, output_path = NULL) {
 generate_latex_mle_table(mle_clean)
 ```
 
-Diagnostics reveal improving model fit as transitions progress (@fig-fitted-vs-true). @fig-residuals gives the deviance of predicted points across fitted values. We observe relatively large deviance across the domain of predictions, but they are particularly large at small values, indicating that the model has the hardes time predicting lower disease prevalence. 
+Diagnostics reveal improving model fit as transitions progress (@fig-fitted-vs-true). @fig-residuals gives the deviance of predicted points across fitted values. We observe relatively large deviance across the domain of predictions, but they are particularly large at small values, indicating that the model has the hardes time predicting lower disease prevalence. It is apparent from these plots that we have lack of model fit. 
 
+
+
+## Hamiltonian Monte Carlo (HMC) Sampling
+Posterior estimates and credible intervals are presented in @tbl-posterior. We observe that postirior means deviate significantly from the MLEs, particularly for the auto-infection and dispersal parameters. This is likely due to the fact that the MLEs are maximized on the boundary of the parameter space, while the posterior means are regularized away from extreme values by the weakly informative priors. We additionally conducted model checking on the posterior predictive distribution and found that the observed data tend to fall outside of the predicted range, indicating a lack of model fit. One potential driver may be the potential for overdispersion in the data, which is not accounted for in the current model. Future work may consider alternative likelihoods (e.g., beta-binomial, random effects) to account for this potential overdispersion.
+
+
+```{r}
+#| echo: false
+#| message: false
+#| warning: false
+#| label: tbl-posterior
+#| tbl-cap: Posterior Estimates and Credible Intervals Across Prior Scenarios
+
+library(cmdstanr)
+library(posterior)
+
+#list file directories for each month and prior scenario
+may_files <- list.files(here("results/stan_fits/may/weakly_informative/2026_07_09_1900/"), pattern = "\\.csv$", full.names = TRUE)
+jun_files <- list.files(here("results/stan_fits/jun/weakly_informative/2026_07_09_1902/"), pattern = "\\.csv$", full.names = TRUE)
+jul_files <- list.files(here("results/stan_fits/jul/weakly_informative/2026_07_09_1904/"), pattern = "\\.csv$", full.names = TRUE)
+
+#List parameters of interest
+params = c("beta", "delta", "gamma", "alpha", "eta1", "eta2")
+
+#Read in the Stan fit objects for each month and prior scenario
+fit_may = cmdstanr::read_cmdstan_csv(may_files, variables = params)
+fit_jun = cmdstanr::read_cmdstan_csv(jun_files, variables = params)
+fit_jul = cmdstanr::read_cmdstan_csv(jul_files, variables = params)
+
+#extract posterior draws for each parameter and month
+posterior_may = fit_may$post_warmup_draws
+posterior_jun = fit_jun$post_warmup_draws
+posterior_jul = fit_jul$post_warmup_draws
+
+# CI level: assuming 95% (2.5% / 97.5%) -- adjust if your table used something else
+ci_probs <- c(0.025, 0.975)
+
+summarize_posterior <- function(draws, month_label, scenario_label) {
+  summarise_draws(
+    draws,
+    mean,
+    sd,
+    ~quantile2(.x, probs = ci_probs)
+  ) %>%
+    mutate(month = month_label, scenario = scenario_label, .before = 1)
+}
+
+summary_may <- summarize_posterior(posterior_may, "may", "weakly_informative")
+summary_jun <- summarize_posterior(posterior_jun, "jun", "weakly_informative")
+summary_jul <- summarize_posterior(posterior_jul, "jul", "weakly_informative")
+
+all_summaries <- bind_rows(summary_may, summary_jun, summary_jul) %>%
+  rename(
+    parameter = variable,
+    estimate  = mean,
+    sd = sd,
+    lci       = q2.5,
+    uci       = q97.5
+  ) %>%
+  mutate(
+    month     = factor(month, levels = c("may", "jun", "jul")),
+    parameter = factor(parameter, levels = params)
+  ) %>%
+  arrange(month, parameter)
+
+all_summaries %>%
+   mutate(parameter = recode(parameter,
+    beta = "$\\beta$", delta = "$\\delta$", gamma = "$\\gamma$",
+    alpha = "$\\alpha$", eta1 = "$\\eta_1$", eta2 = "$\\eta_2$"
+  )) |> 
+  select(-scenario) %>%
+  kable(
+    booktabs = TRUE,
+    format = "latex",
+    escape = FALSE,
+    digits = 3,
+    col.names = c("Month", "Parameter", "Mean", "Std. Dev.", "2.5\\%", "97.5\\%")
+  ) |> 
+    collapse_rows(columns = 1) |> 
+    kable_styling(latex_options = c("striped"), font_size = 9)
+```
+
+# Discussion
+
+# Appendix
+
+## Maximum Likelihood Diagnostics
 ```{r}
 #| fig-height: 6
 #| fig-width: 8
@@ -363,7 +464,7 @@ Diagnostics reveal improving model fit as transitions progress (@fig-fitted-vs-t
 #| fig-cap: Fitted vs. Observed values
 #| echo: false
 #| message: false
-mle_preds <- read.csv(here("data/processed/results/mle_preds.csv"))
+mle_preds <- read.csv(here("results/mle/mle_preds.csv"))
 
 mle_preds |> 
   mutate(month = factor(month, levels = c("may", "jun", "jul"), labels = c("April-May", "May-June", "June-July")),
@@ -401,4 +502,19 @@ mle_preds |>
 
 ```
 
-# Discussion
+## Hamiltonian Monte Carlo Diagnostics
+
+### Trace Plots
+::: {#fig-traceplots layout-nrow="3" layout-ncol="1"}
+![May](../output/figures/hmc_diagnostics/may_trace_plots.png){#fig-may-traceplots}
+
+![June](../output/figures/hmc_diagnostics/jun_trace_plots.png){#fig-jun-traceplots}
+
+![July](../output/figures/hmc_diagnostics/jul_trace_plots.png){#fig-jul-traceplots}
+:::
+
+### Autocorrelation Checks
+
+# References
+:::{#refs}
+:::

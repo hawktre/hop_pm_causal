@@ -1,6 +1,10 @@
+import os
 import numpy as np
 import pandas as pd
 import cmdstanpy
+
+# Create output directories if they do not exist
+os.makedirs("results/mle/edge_weights", exist_ok=True)
 
 #Function to read in the data and separate it into objects stacked (across years) and by year
 def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_{year}.npz'):
@@ -219,7 +223,7 @@ for month in months:
             
             # Save the trimmed pairwise matrices directly as CSV
             scenario_slug = scenario_name.lower().replace(' ', '_')
-            edge_csv_path = f"data/processed/results/edge_weights/edge_weights_{month}_{scenario_slug}_{year}.csv"
+            edge_csv_path = f"results/mle/edge_weights/edge_weights_{month}_{scenario_slug}_{year}.csv"
             np.savetxt(edge_csv_path, year_edges, delimiter=",")
 
             # Sum incoming edge weights (columns) for each target yard (rows)
@@ -263,14 +267,14 @@ print("\n--- MLE Parameter Results ---")
 print(df_results)
 
 # Save MLE results
-df_results.to_csv('data/processed/results/mle_results.csv', index=False)
+df_results.to_csv('results/mle/mle_results.csv', index=False)
 
 # Save Predictions 
 df_preds = pd.DataFrame(prediction_list)
-df_preds.to_csv("data/processed/results/mle_preds.csv", index=False)
+df_preds.to_csv("results/mle/mle_preds.csv", index=False)
 
 # Save Edge Weights 
 df_edges = pd.DataFrame(edge_weight_list)
-df_edges.to_csv("data/processed/results/mle_edges_long.csv", index=False)
-print("\nSaved results to data/processed/")
+df_edges.to_csv("results/mle/mle_edges_long.csv", index=False)
+print("\nSaved results to results/mle/")
 

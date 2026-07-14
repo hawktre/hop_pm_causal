@@ -1,7 +1,9 @@
 import numpy as np
 import pandas as pd
 import cmdstanpy
-import arviz as az
+import os
+
+
 
 #Function to read in the data and separate it into objects stacked (across years) and by year
 def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_{year}.npz'):
@@ -76,9 +78,14 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years, prior
         dist_mats[i, :N_yr, :N_yr] = data_by_year[y]['distance']
         wind_mats[i, :N_yr, :N_yr] = data_by_year[y][f'wind_{lag_month}']
 
+    #get factorized ids
+    factorized_ids, unique_ids = pd.factorize(stacked_data['field_id'].flatten())
+
     #Format for stan
     stan_data = {
-        "T": T, "N_total": sum(year_sizes), "N_max": N_max,
+        "T": T, "N_total": sum(year_sizes), "N_max": N_max, 
+        "N_yards": len(unique_ids),
+        "yard_ids": (factorized_ids + 1).tolist(), 
         "year_starts": year_starts, "year_ends": year_ends, "year_sizes": year_sizes,
         "y": stacked_data[f'y_{analysis_month}'].flatten().astype(int).tolist(), 
         "n": stacked_data[f'n_{analysis_month}'].flatten().astype(int).tolist(),
@@ -89,7 +96,6 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years, prior
         "a_lag": stacked_data[f'a_{lag_month}'].flatten(),
         "cultivar": stacked_data['tI1'].flatten(),
         "dist_mats": dist_mats, "wind_mats": wind_mats,
-        "field_id": pd.factorize(stacked_data['field_id'].flatten())[0] + 1,
         "J": len(np.unique(stacked_data['field_id'].flatten())),
         **prior_config 
     }
@@ -97,37 +103,100 @@ def prepare_stan_inputs(analysis_month, data_by_year, stacked_data, years, prior
 
 # --- Specify Priors ---
 prior_scenarios = {
-    "towards_zero": {
-        "beta_mu": 0, "beta_sigma": 10, #log-normal
-        "delta_mu": 0, "delta_sigma": 10, #log-normal
-        "gamma_mu": 0, "gamma_sigma": 10, #log-normal
-        "alpha_mu": 1, "alpha_sigma": 10, #log-normal
-        "eta1_mu": 0, "eta1_sigma": 10, #log-normal
-        "eta2_mu": 0, "eta2_sigma": 10, #log-normal
-    },
-    "informed_priors": {
-    "beta_mu": -2.5, "beta_sigma": 10, #log-normal
-    "delta_mu": 1, "delta_sigma": 1, #log-normal
-    "gamma_mu": 7.5, "gamma_sigma": 1, #log-normal
-    "alpha_mu": 1, "alpha_sigma": 1, #log-normal
-    "eta1_mu": 0, "eta1_sigma": 1, #log-normal
-    "eta2_mu": 0, "eta2_sigma": 1, #log-normal
+    "weakly_informative": {
+        # Global baseline intercept (Unconstrained linear regressor)
+        "beta_mu": 0,       "beta_sigma": 2.5, 
+        
+        # Auto-infection & Dispersal (Clamped to prevent logit overflow)
+        "delta_mu": 0,      "delta_sigma": 2.5, 
+        "gamma_mu": 0,      "gamma_sigma": 2.5, 
+        
+        # Distance decay (Anchored tightly around 1.0)
+        "alpha_mu": 0,      "alpha_sigma": 2.5, 
+        
+        # Spray decays (Moderately regularized)
+        "eta1_mu": 0,       "eta1_sigma": 2.5, 
+        "eta2_mu": 0,       "eta2_sigma": 2.5,
+        "phi_mu": 0,        "phi_sigma": 2.5
     }
 }
 
+# Set up years and time transitions
 years = [2014, 2015, 2016, 2017]
 months = ['may', 'jun', 'jul']
 
-#Compile the model and prep the data
-stan_model = cmdstanpy.CmdStanModel(stan_file="src/dispersal_mod.stan")
+
+
+
+#Select/Compile the model (one of "binomial", "zero_inflated_binomial", "zero_inflated_beta_binomial") and prep the data
+models = ["binomial", "zero_inflated_binomial", "zero_inflated_beta_binomial"]
+
 data_by_year, stacked = load_and_preprocess_hop_data(years)
-params = ['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2']
-test = stan_model.sample(prepare_stan_inputs('may', data_by_year, stacked, years, prior_scenarios['towards_zero']))
-test.summary().iloc[1:10]
 
+#Save the formatted data
+np.savez("data/processed/stacked_data.npz", stacked)
+np.savez("data/processed/data_by_year.npz", data_by_year)
 
-idata = az.from_cmdstanpy(posterior=test)
+# Prepare an empty list to serve as our lightweight index container
+results_list = []
 
-az.plot_dist(idata, var_names=params)
-az.plot_trace(idata, var_names=params)
-az.plot_pair(idata, var_names=params)
+for model in models:
+    #Compile the model
+    mod_path = str("src/dispersal_mod_") + str(model) + str(".stan")
+    stan_model = cmdstanpy.CmdStanModel(stan_file= mod_path)
+    for month in months:
+        for scenario, priors in prior_scenarios.items():
+            print("\n=========================================")
+            print(f"Running: Model = {model}, Month = {month}, Prior = {scenario}")
+            print("=========================================")
+            
+            # Pull and compile the stan data
+            stan_data = prepare_stan_inputs(month, data_by_year, stacked, years, priors)
+
+            # Build a highly descriptive unique prefix for this file combination
+            run_output_dir = os.path.join("results", "stan_fits", model, month)
+            os.makedirs(run_output_dir, exist_ok=True)
+
+            try:
+                # Fit the model
+                fit = stan_model.sample(
+                    data=stan_data,
+                    output_dir=run_output_dir,
+                    time_fmt="%Y%m%d",
+                    show_progress=True
+                )
+                
+                # Quick diagnostic checks
+                diagnose_output = fit.diagnose()
+                has_divergences = "No divergent transitions" in diagnose_output
+                
+                # Capture the file paths to the permanent output CSVs
+                csv_files = fit.runset.csv_files
+                
+                # Append metadata and file references to our container
+                results_list.append({
+                    "month": month,
+                    "prior_scenario": scenario,
+                    "csv_paths": ",".join(csv_files),  # Stored as a comma-separated string
+                    "divergences": not has_divergences,
+                    "status": "success"
+                })
+                
+            except Exception as e:
+                print(f"!!! Optimization or Sampling Failed for {month} ({scenario}): {e}")
+                results_list.append({
+                    "month": month,
+                    "prior_scenario": scenario,
+                    "csv_paths": None,
+                    "divergences": None,
+                    "status": f"failed: {str(e)}"
+                })
+                
+            # CRITICAL: Drop the fit object and clear RAM before the next iteration
+            if 'fit' in locals():
+                del fit
+
+# Save your master index mapping metadata to file locations
+results_list_df = pd.DataFrame(results_list)
+print(results_list_df)
+print("\nAll loops completed!")

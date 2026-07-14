@@ -1,8 +1,82 @@
-.Rproj.user
+# ==============================================================================
+# OS and Editor Specific Files
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# ==============================================================================
+# R and RStudio Files
+# ==============================================================================
+.Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
+renv/library/
+renv/local/
+renv/staging/
+renv/sandbox/
+
+# ==============================================================================
+# Python and Virtual Environments
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env
+.pytest_cache/
+.ipynb_checkpoints/
+pip-log.txt
+
+# ==============================================================================
+# Quarto and Publication Artifacts
+# ==============================================================================
+.quarto/
+*_files/
 *.pdf
-.venv/*
-background/*
 *.docx
+output/figures/hmc_diagnostics/
+
+# ==============================================================================
+# Stan / CmdStan Compilation & Execution Artifacts
+# ==============================================================================
+# Ignore compiled Stan executables in src/ (files without extensions)
+src/*
+!src/*/
+!src/*.py
+!src/*.stan
+!src/*.md
+
+# Windows executables and compilation artifacts
+src/*.exe
+src/*.hpp
+src/*.cpp
+src/*.o
+src/*.d
+
+# ==============================================================================
+# Data and Results (Generated files should not be tracked)
+# ==============================================================================
+# Ignore all processed data files
+data/processed/*.csv
+data/processed/*.npz
+
+# Ignore all generated results and MCMC fits
+results/
+
+# Ignore local background runs/logs
+background/*

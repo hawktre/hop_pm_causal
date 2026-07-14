@@ -6,7 +6,7 @@ This directory contains Quarto documents for reporting and figures generated dur
 
 | Folder/File | Description | Inputs | Outputs |
 | :--- | :--- | :--- | :--- |
-| `figures/` | Diagnostic and results plots. | `src/02_compare_MLE.py` | PNG images |
-| `model_results.qmd` | Quarto document summarizing model findings. | `data/processed/results/*.csv` | Rendered report (HTML/PDF) |
+| `figures/` | Diagnostic and results plots. | `src/01a_compare_mle.py`, `src/02a_explore_results.py` | PNG images |
+| `model_results.qmd` | Quarto document summarizing model findings. | `results/mle/*.csv`, `results/stan_fits/**/*.csv` | Rendered report (HTML/PDF) |
 | `modeling_considerations.qmd` | Quarto document discussing modeling choices. | - | Rendered report (HTML/PDF) |
 | `references.bib` | BibTeX references for the reports. | - | - |
