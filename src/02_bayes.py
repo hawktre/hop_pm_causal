@@ -130,10 +130,15 @@ months = ['may', 'jun', 'jul']
 
 #Select/Compile the model (one of "binomial", "zero_inflated_binomial", "zero_inflated_beta_binomial") and prep the data
 models = ["binomial", "zero_inflated_binomial", "zero_inflated_beta_binomial"]
-
 data_by_year, stacked = load_and_preprocess_hop_data(years)
 
+#Covert the stacked data to a dataframe for ease
+stacked_flat = {k: np.asarray(v).ravel() for k, v in stacked.items()}
+stacked_df = pd.DataFrame(stacked_flat)
+
+
 #Save the formatted data
+stacked_df.to_csv("data/processed/stacked_data.csv")
 np.savez("data/processed/stacked_data.npz", stacked)
 np.savez("data/processed/data_by_year.npz", data_by_year)
 

@@ -134,9 +134,22 @@ if os.path.exists(results_dir):
                 plt.close('all')
                 
                 # Generate Posterior Predictive Checks (PPC) for the month of interest
-                az.plot_ppc_rootogram(idata)
+                az.plot_ppc_rootogram(idata,
+                visuals={"observed_markers": {"s": 15},     # smaller black dots
+                "predictive_markers": {"s": 15},   # smaller blue dots
+                })
                 plt.title(f"Posterior Predictive Checks (Rootogram) - {model} ({month})", fontsize=16)
                 plt.savefig(f"{output_dir}/ppc_rootogram.png", dpi=300, bbox_inches='tight')
+                plt.close('all')
+
+                # Generate Posterior Predictive Checks (PPC) for the month of interest
+                ax = az.plot_ppc_rootogram(idata,
+                visuals={"observed_markers": {"s": 15},     # smaller black dots
+                "predictive_markers": {"s": 15},   # smaller blue dots
+                })
+                plt.xlim([0, 50])
+                plt.title(f"Posterior Predictive Checks (Rootogram) - {model} ({month}) - zoomed", fontsize=16)
+                plt.savefig(f"{output_dir}/ppc_rootogram_zoomed.png", dpi=300, bbox_inches='tight')
                 plt.close('all')
                 
                 # Generate a table summary of the posterior estimates

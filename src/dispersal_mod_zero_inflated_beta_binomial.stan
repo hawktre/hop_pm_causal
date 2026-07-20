@@ -195,7 +195,7 @@ model {
 }
 
 generated quantities {
-  array[T] matrix[N_max, N_max] edge_weights;
+  matrix[N_total, N_total] edge_weights = rep_matrix(0.0, N_total, N_total);
   
   for (t in 1 : T) {
     int start = year_starts[t];
@@ -207,16 +207,14 @@ generated quantities {
     vector[N_yr] s_y = s_lag[start : end];
     vector[N_yr] sI1_y = sI1_lag[start : end];
     vector[N_yr] cult_y = cultivar[start : end];
-    
-    // Initialize this year's matrix with zeros
-    edge_weights[t] = rep_matrix(0.0, N_max, N_max);
+
     
     // Calculate the smaller local dispersal matrix (N_yr x N_yr)
     matrix[N_yr, N_yr] disp_yr = calc_dispersal_mat(dist_mats[t], wind_mats[t], ss_y,
                                                     sI1_y, s_y, cult_y, alpha, eta2);
     
     // Assign to our edge weights matrix
-    edge_weights[t][1 : N_yr, 1 : N_yr] = gamma * disp_yr;
+    edge_weights[start : end, start : end] = gamma * disp_yr;
   }
 
   // generate y-star for posterior predictive checks

@@ -60,6 +60,7 @@ src/*
 !src/*.py
 !src/*.stan
 !src/*.md
+!src/*.R
 
 # Windows executables and compilation artifacts
 src/*.exe
@@ -77,6 +78,6 @@ data/processed/*.npz
 
 # Ignore all generated results and MCMC fits
 results/
-
+*.png
 # Ignore local background runs/logs
 background/*
