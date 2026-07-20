@@ -386,10 +386,11 @@ Posterior estimates and credible intervals are presented in @tbl-posterior. We o
 library(cmdstanr)
 library(posterior)
 
+
 #list file directories for each month and prior scenario
-may_files <- list.files(here("results/stan_fits/may/weakly_informative/2026_07_09_1900/"), pattern = "\\.csv$", full.names = TRUE)
-jun_files <- list.files(here("results/stan_fits/jun/weakly_informative/2026_07_09_1902/"), pattern = "\\.csv$", full.names = TRUE)
-jul_files <- list.files(here("results/stan_fits/jul/weakly_informative/2026_07_09_1904/"), pattern = "\\.csv$", full.names = TRUE)
+may_files <- list.files(here("results/stan_fits/binomial/may/"), pattern = "\\.csv$", full.names = TRUE)
+jun_files <- list.files(here("results/stan_fits/binomial/jun/"), pattern = "\\.csv$", full.names = TRUE)
+jul_files <- list.files(here("results/stan_fits/binomial/jul/"), pattern = "\\.csv$", full.names = TRUE)
 
 #List parameters of interest
 params = c("beta", "delta", "gamma", "alpha", "eta1", "eta2")
@@ -464,7 +465,7 @@ all_summaries %>%
 #| fig-cap: Fitted vs. Observed values
 #| echo: false
 #| message: false
-mle_preds <- read.csv(here("results/mle/mle_preds.csv"))
+mle_preds <- read.csv(here("results/mle/binomial/mle_preds.csv"))
 
 mle_preds |> 
   mutate(month = factor(month, levels = c("may", "jun", "jul"), labels = c("April-May", "May-June", "June-July")),
@@ -504,16 +505,6 @@ mle_preds |>
 
 ## Hamiltonian Monte Carlo Diagnostics
 
-### Trace Plots
-::: {#fig-traceplots layout-nrow="3" layout-ncol="1"}
-![May](../output/figures/hmc_diagnostics/may_trace_plots.png){#fig-may-traceplots}
-
-![June](../output/figures/hmc_diagnostics/jun_trace_plots.png){#fig-jun-traceplots}
-
-![July](../output/figures/hmc_diagnostics/jul_trace_plots.png){#fig-jul-traceplots}
-:::
-
-### Autocorrelation Checks
 
 # References
 :::{#refs}
