@@ -69,6 +69,8 @@ if os.path.exists(results_dir):
     # Find all models (directories under results/stan_fits/)
     models = [d for d in os.listdir(results_dir) if os.path.isdir(os.path.join(results_dir, d))]
     
+    all_summaries = []
+
     for model in models:
         model_path = os.path.join(results_dir, model)
         months = [d for d in os.listdir(model_path) if os.path.isdir(os.path.join(model_path, d))]
@@ -130,9 +132,30 @@ if os.path.exists(results_dir):
                 # Generate Distribution Plots for selected parameters
                 az.plot_dist(idata, var_names=params)
                 plt.suptitle(f"Posterior Distributions - {model} ({month})", fontsize=16)
-                plt.savefig(f"{output_dir}/posterior_distributions.png", dpi=300, bbox_inches='tight')
+                plt.savefig(f"{output_dir}/posterior_distributions.png", dpi = 300, bbox_inches='tight')
                 plt.close('all')
                 
+                #Generate Pairs Plots for selected parameters
+                az.plot_pair(idata, var_names=['beta', 'delta', 'gamma', 'alpha', 'eta1', 'eta2'])
+                plt.suptitle(f"Posterior Distributions (Pairs) - {model} ({month})", fontsize=16)
+                plt.savefig(f"{output_dir}/posterior_distributions_pairs.png", dpi = 300, bbox_inches='tight')
+                plt.close('all')
+
+                #Generate Pairs Plots for additional parameters
+                if 'zero_inflated_binomial' in model:
+                    az.plot_pair(idata, var_names=['beta', 'pi'])
+                    plt.suptitle(f"Posterior Distributions (Pairs) - {model} ({month})", fontsize=16)
+                    plt.savefig(f"{output_dir}/posterior_distributions_pairs_int_params.png", dpi = 300, bbox_inches='tight')
+                    plt.close('all')
+                elif 'zero_inflated_beta_binomial' in model:
+                    az.plot_pair(idata, var_names=['beta', 'pi', 'phi'])
+                    plt.suptitle(f"Posterior Distributions (Pairs) - {model} ({month})", fontsize=16)
+                    plt.savefig(f"{output_dir}/posterior_distributions_pairs_int_params.png", dpi = 300, bbox_inches='tight')
+                    plt.close('all')
+                else:
+                    pass
+
+
                 # Generate Posterior Predictive Checks (PPC) for the month of interest
                 az.plot_ppc_rootogram(idata,
                 visuals={"observed_markers": {"s": 15},     # smaller black dots
@@ -142,12 +165,12 @@ if os.path.exists(results_dir):
                 plt.savefig(f"{output_dir}/ppc_rootogram.png", dpi=300, bbox_inches='tight')
                 plt.close('all')
 
-                # Generate Posterior Predictive Checks (PPC) for the month of interest
+                # Generate Posterior Predictive Checks (PPC) for the month of interest (zoomed)
                 ax = az.plot_ppc_rootogram(idata,
                 visuals={"observed_markers": {"s": 15},     # smaller black dots
                 "predictive_markers": {"s": 15},   # smaller blue dots
                 })
-                plt.xlim([0, 50])
+                plt.xlim([-1, 50])
                 plt.title(f"Posterior Predictive Checks (Rootogram) - {model} ({month}) - zoomed", fontsize=16)
                 plt.savefig(f"{output_dir}/ppc_rootogram_zoomed.png", dpi=300, bbox_inches='tight')
                 plt.close('all')
@@ -156,10 +179,30 @@ if os.path.exists(results_dir):
                 posterior_summary = az.summary(idata, var_names=params)
                 posterior_summary.to_csv(f"{output_dir}/posterior_summary.csv")
                 
+                # Format summary DataFrame for combined tracking
+                summary_df = posterior_summary.reset_index()
+                summary_df.columns.values[0] = "parameter"
+                summary_df.insert(0, "month", month)
+                summary_df.insert(0, "model", model)
+                all_summaries.append(summary_df)
+                
                 print(f"Finished diagnostics for {model}/{month}. Saved to {output_dir}")
                 
             except Exception as e:
                 print(f"Error processing {model}/{month}: {e}")
                 plt.close('all')
+
+    if all_summaries:
+        combined_summary = pd.concat(all_summaries, ignore_index=True)
+        
+        # Save compiled CSV to results and diagnostics directories
+        combined_csv_path_results = "results/stan_fits/posterior_summaries.csv"
+        combined_csv_path_output = "output/figures/hmc_diagnostics/posterior_summaries.csv"
+        
+        combined_summary.to_csv(combined_csv_path_results, index=False)
+        combined_summary.to_csv(combined_csv_path_output, index=False)
+        print(f"\nCompiled {len(all_summaries)} posterior summaries into single CSV:")
+        print(f"  - {combined_csv_path_results}")
+        print(f"  - {combined_csv_path_output}")
 else:
     print(f"Results directory not found at: {results_dir}")

@@ -6,7 +6,7 @@ import os
 
 
 #Function to read in the data and separate it into objects stacked (across years) and by year
-def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_{year}.npz'):
+def load_and_preprocess_hop_data(years, data_path_template='data/processed/data_{year}_test.npz'):
     data_by_year = {}
     vector_keys = [
         'field_id', 'year_vec','tI1', 'y_apr', 'y_may', 'y_jun', 'y_jul',
@@ -139,8 +139,8 @@ stacked_df = pd.DataFrame(stacked_flat)
 
 #Save the formatted data
 stacked_df.to_csv("data/processed/stacked_data.csv")
-np.savez("data/processed/stacked_data.npz", stacked)
-np.savez("data/processed/data_by_year.npz", data_by_year)
+np.savez("data/processed/stacked_data_test.npz", stacked)
+np.savez("data/processed/data_by_year_test.npz", data_by_year)
 
 # Prepare an empty list to serve as our lightweight index container
 results_list = []
